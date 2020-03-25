@@ -2,10 +2,10 @@ import logging
 from torch import nn
 logging.basicConfig(level=logging.INFO)
 import torch
-from utils import AverageMeter, accuracy
+from utils import AverageMeter, accuracy, plot_classes_preds
 torch.set_default_tensor_type('torch.cuda.FloatTensor')
 
-def train(trainloader, model, criterion, optimizer, report_freq=50):
+def train(trainloader, model, criterion, optimizer, writer, report_freq=50):
     objs = AverageMeter()
     top1 = AverageMeter()
     top5 = AverageMeter()
@@ -30,7 +30,17 @@ def train(trainloader, model, criterion, optimizer, report_freq=50):
 
         if step % report_freq == 0:
             logging.info('train %03d %e %f %f', step, objs.avg, top1.avg, top5.avg)
+            # ...log the running loss
+            writer.add_scalar('training loss',
+                            objs.avg,
+                            step)
 
+            # ...log a Matplotlib Figure showing the model's predictions on a
+            # random mini-batch
+            writer.add_figure('predictions vs. actuals',
+                            plot_classes_preds(model, input, target),
+                            global_step=step)
+        
     return top1.avg, objs.avg
 
 def infer(valid_queue, model, criterion, report_freq=50):

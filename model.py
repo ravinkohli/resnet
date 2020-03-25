@@ -1,5 +1,7 @@
 from torch import nn
 import torch
+torch.set_default_tensor_type('torch.cuda.FloatTensor')
+
 class ResidualBlock(nn.Module):
     expansion = 1
     def __init__(self, in_depth, depth, downsample=None, stride=1, padding=1):
