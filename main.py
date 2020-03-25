@@ -63,7 +63,7 @@ if __name__ == '__main__':
     criterion.cuda()
     optimizer = optim.SGD(model.parameters(), lr=0.001)
     lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, num_epochs)
-    summary_dir = os.mkdir(f'{save_model_str}_summary')
+    summary_dir = os.mkdir(f'{save_model_str}summary')
     writer = SummaryWriter(f'{summary_dir}/summary_model')
     
     c = datetime.datetime.now()
@@ -82,10 +82,10 @@ if __name__ == '__main__':
         # Save the model checkpoint, can be restored via "model = torch.load(save_model_str)"
         if not os.path.exists(save_model_str):
             os.mkdir(save_model_str)
-        save_model_str += f'_({datetime.datetime.now()})'
+        save_model_str += f'model_({datetime.datetime.now()})'
         os.mkdir(save_model_str)
         
-        torch.save(model.state_dict(), f'{save_model_str}_state')
+        torch.save(model.state_dict(), f'{save_model_str}/state')
         # get some random training images
         model.eval()
         dataiter = iter(trainloader)
