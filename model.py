@@ -1,6 +1,6 @@
 from torch import nn
 import torch
-torch.set_default_tensor_type('torch.cuda.FloatTensor')
+# torch.set_default_tensor_type('torch.cuda.FloatTensor')
 
 class ResidualBlock(nn.Module):
     expansion = 1
@@ -47,8 +47,13 @@ class ResNet(nn.Module):
         self.layer1 = self._make_layer(block, self.initial_depth, layers[0])
         self.layer2 = self._make_layer(block, 2*self.initial_depth, layers[1], stride=2)
         self.layer3 = self._make_layer(block, 4*self.initial_depth, layers[2], stride=2)
+        last_depth = 4*self.initial_depth
+        self.layer4 = False
+        if len(layers) == 4:
+            self.layer4 = self._make_layer(block, 8*self.initial_depth, layers[3], stride=2)
+            last_depth = 8*self.initial_depth
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
-        self.fc = nn.Linear(256 * block.expansion, n_classes)
+        self.fc = nn.Linear(last_depth * block.expansion, n_classes)
         
     def _make_layer(self, block, depth, blocks, stride=1, dilate=False):
         downsample = None
@@ -78,10 +83,12 @@ class ResNet(nn.Module):
         x = self.layer1(x)
         x = self.layer2(x)
         x = self.layer3(x)
-
+        
+        if self.layer4:
+            x = self.layer4(x)
+        
         x = self.avgpool(x)
         x = torch.flatten(x, 1)
         x = self.fc(x)
 
         return x
-

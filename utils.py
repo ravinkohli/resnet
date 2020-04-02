@@ -2,7 +2,51 @@ import torch
 import numpy as np
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
+import os
 torch.set_default_tensor_type('torch.cuda.FloatTensor')
+import logging
+logging.basicConfig(level=logging.INFO)
+def preprocess(dataset, transforms):
+    dataset = copy.copy(dataset)
+    for transform in reversed(transforms):
+        dataset['data'] = transform(dataset['data'])
+    return dataset
+
+class AccuracyMeter(object):
+    
+    def __init__(self, name, model_dir):
+        self.name = name
+        self.file = open(f'{model_dir}/{name}_stats.txt', 'a')
+        self.reset()
+    
+    def reset(self):
+        self.stats = {'acc': 0.0, 'loss': 0.0}
+        self.cnt = 0
+        self.time = 0.0
+    
+    def update(self, stats, time, n=1):
+        self.stats = stats
+        self.cnt += n
+        self.time += time
+        logging.info(f"{self.name}_acc: {stats['acc']}, time for step{self.cnt}: {time}, total train time: {self.time}")
+        self.file.write(f"{self.name}_acc: {stats['acc']}, time for step{self.cnt}: {time}, total train time: {self.time}\n")
+
+    def plot(self, out_dir):
+        legends = list()
+        for key in self.stats.keys():
+            legends.append(f'{self.name}_{key}')
+            plt.plot(self.stats[key], range(self.cnt))
+            plt.title(f'Model {self.name}_{key}')
+            plt.ylabel(f'Loss {self.name}_{key}')
+            plt.xlabel('Epoch')
+            plt.xticks(np.arange(0, self.cnt, 1.0))
+        plt.legend(legends, loc='upper left') 
+        out_dir = os.path.join(out_dir, 'plots')
+        if not os.path.exists(out_dir):
+            os.mkdir(out_dir)
+        plt.savefig(f"{os.path.join(out_dir, f'{self.name}_{key}')}.png")
+        self.file.close()
+        
 
 class AverageMeter(object):
 
