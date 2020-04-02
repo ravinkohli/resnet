@@ -46,3 +46,18 @@ class TensorRandomCrop:
         h = np.random.choice(range(H + 1 - self.height))
         w = np.random.choice(range(W + 1 - self.width))
         return tensor[:, h:h+self.height, w:w+self.width]
+
+class Transform():
+    def __init__(self, dataset, transforms):
+        self.dataset, self.transforms = dataset, transforms
+        
+    def __len__(self):
+        return len(self.dataset)
+           
+    def __getitem__(self, index):
+        data, labels = self.dataset[index]
+        data = data.copy()
+        for f in self.transforms:
+            data = f(data)
+        return data, labels
+    

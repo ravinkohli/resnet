@@ -2,7 +2,7 @@ from model import ResidualBlock, ResNet
 from train import train, infer
 from utils import AccuracyMeter
 from pieacewise_linear_lr_schedule import PiecewiseLinearLR #get_change_scale, get_piecewise
-from transforms import TensorRandomHorizontalFlip, TensorRandomCrop, Cutout
+from transforms import TensorRandomHorizontalFlip, TensorRandomCrop, Cutout, Transform
 
 from torch import nn
 import torch
@@ -32,43 +32,44 @@ def imshow(img):
     plt.imshow(np.transpose(npimg, (1, 2, 0)))
     plt.show()
 
-if __name__ == '__main__':
+def main():
     cifar10_mean, cifar10_std = [
     (125.31, 122.95, 113.87), # equals np.mean(cifar10()['train']['data'], axis=(0,1,2)) 
     (62.99, 62.09, 66.70), # equals np.std(cifar10()['train']['data'], axis=(0,1,2))
     ]
-    train_transform = transforms.Compose(
-        [transforms.ToTensor(),
+    train_transform = [transforms.ToTensor(),
         # transforms.Normalize(cifar10_mean, cifar10_std),
         TensorRandomCrop(30, 30),
         TensorRandomHorizontalFlip(),
-        Cutout(8, 8),
-        ])
+        Cutout(8, 8)
+        ]
     
-    test_transform = transforms.Compose(
-        [transforms.ToTensor(),
-        ])
+    test_transform =[transforms.ToTensor()
+        ]
 
     batch_size = 8
     split = 0.2
     
     trainset = torchvision.datasets.CIFAR10(root='./data', train=True,
-                                            download=True, transform=train_transform)
+                                            download=True)
+    testset = torchvision.datasets.CIFAR10(root='./data', train=False,
+                                        download=True)
+
     indices = list(range(int(split*len(trainset))))
     valid_indices =  list(range(int(split*len(trainset)), len(trainset)))
     logging.info(f"Training size= {len(indices)}")
     training_sampler = SubsetRandomSampler(indices)
     valid_sampler = SubsetRandomSampler(valid_indices)
-    trainloader = torch.utils.data.DataLoader(dataset=trainset,
+    trainloader = torch.utils.data.DataLoader(dataset=Transform(trainset, train_transform),
                                             batch_size=batch_size,
                                             sampler=training_sampler) 
 
-    validloader = torch.utils.data.DataLoader(dataset=trainset, 
+    validloader = torch.utils.data.DataLoader(dataset=Transform(trainset, test_transform), 
                                             batch_size=batch_size, 
                                             sampler=valid_sampler)                
-    testset = torchvision.datasets.CIFAR10(root='./data', train=False,
-                                        download=True, transform=test_transform)
-    testloader = torch.utils.data.DataLoader(testset, batch_size=batch_size,
+    
+    testloader = torch.utils.data.DataLoader(Transform(testset, test_transform),
+                                            batch_size=batch_size,
                                             shuffle=False)
 
     classes = ('plane', 'car', 'bird', 'cat',
@@ -92,7 +93,8 @@ if __name__ == '__main__':
 
     num_epochs = 35
     save_model_str = './models/'
-
+    success = False
+    time_to_94 = None
     if not os.path.exists(save_model_str):
         os.mkdir(save_model_str) 
     logging.info(f"{torch.cuda.is_available()}")
@@ -114,11 +116,7 @@ if __name__ == '__main__':
     criterion.cuda()
     optimizer = optim.SGD(model.parameters(), lr=0.001) #), weight_decay=5e-4*batch_size, momentum=0.9)
     lr_scheduler = PiecewiseLinearLR(optimizer, milestones=[0, 5, num_epochs], schedule=[0, 0.4, 0])
-    # lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, num_epochs)
-    # lr_scheduler = get_change_scale(
-    #     get_piecewise([0, 4, num_epochs], [0.025, 0.4, 0.001]),
-    #     1.0 / batch_size
-    # )
+
     summary_dir = f'{save_model_str}/summary'
     if not os.path.exists(summary_dir):
             os.mkdir(summary_dir)    
@@ -126,8 +124,11 @@ if __name__ == '__main__':
     train_meter = AccuracyMeter(model_dir=summary_dir, name='train')
     test_meter = AccuracyMeter(model_dir=summary_dir, name='test')
     valid_meter = AccuracyMeter(model_dir=summary_dir, name='valid')
+    lrs = list()
     for epoch in range(num_epochs):
         lr = lr_scheduler.get_lr()[0]
+        lrs.append(lr)
+
         logging.info('epoch %d lr %e', epoch, lr)
 
         train_acc, train_obj, time = train(trainloader, model, criterion, optimizer)
@@ -137,7 +138,9 @@ if __name__ == '__main__':
         valid_acc, valid_obj, time = infer(validloader, model, criterion)
         valid_meter.update({'acc': valid_acc, 'loss': valid_obj}, time.total_seconds())
         if valid_acc >=94:
-            logging.info(f'Time to reach 94% {train_meter.time}')    
+            success = True
+            time_to_94 = train_meter.time
+            logging.info(f'Time to reach 94% {time_to_94}')    
 
     a = datetime.datetime.now() - c
     test_acc, test_obj, time = infer(testloader, model, criterion, type='test')
@@ -145,37 +148,32 @@ if __name__ == '__main__':
     torch.save(model.state_dict(), f'{save_model_str}/state')
     train_meter.plot(save_model_str)
     valid_meter.plot(save_model_str)
-    # if save_model_str:
-    #     # Save the model checkpoint, can be restored via "model = torch.load(save_model_str)"
-    
-        
-    #     # get some random training images
-    #     model.eval()
-    #     dataiter = iter(trainloader)
-    #     images, labels = dataiter.next()
-    #     images = images.cuda()
-    #     labels = labels.cuda(non_blocking=True)
-    #     # create grid of images
-    #     # img_grid = torchvision.utils.make_grid(images)
+    plt.plot(lrs)
+    plt.title('LR vs epochs')
+    plt.xlabel('Epochs')
+    plt.ylabel('LR')
+    plt.xticks(np.arange(0, num_epochs, 5))
+    plt.savefig('lr_schedule.png')
+    plt.close()
 
-    #     # show images
-    #     # matplotlib_imshow(img_grid, one_channel=True)
-
-    #     # write to tensorboard
-    #     writer.add_graph(model, images)
-    #     # images, labels = select_n_random(trainset.data, trainset.targets)
-
-    #     # # get the class labels for each image
-    #     # class_labels = [classes[lab] for lab in labels]
-
-    #     # # log embeddings
-    #     # features = images.view(-1, 28 * 28)
-    #     # writer.add_embedding(features,
-    #     #                     metadata=class_labels,
-    #     #                     label_img=images.unsqueeze(1))
-    #     writer.close()
-
-    logging.info(f'test_acc: {test_acc}, save_model_str:{save_model_str}, total time :{a.total_seconds()} and GPU used {torch.cuda.get_device_name(0)}')
+    total_time = round(a.total_seconds(), 2)
+    logging.info(f'test_acc: {test_acc}, save_model_str:{save_model_str}, total time :{total_time} and GPU used {torch.cuda.get_device_name(0)}')
+    _, cnt, time  = train_meter.get()
+    time_per_step = round(time/cnt, 2)
+    return_dict = {'test_acc': test_acc, 
+                'save_model_str':save_model_str, 
+                'training_time_per_step': time_per_step, 
+                'total_train_time': time, 
+                'total_time':total_time, 
+                'GPU' :torch.cuda.get_device_name(0)
+                }
+    if success:
+        return_dict['time_to_94'] = time_to_94
+    return 
 
 
-
+if __name__ == '__main__':
+    ret_dict = main()
+    with open('all_experiments.txt', 'a') as f:
+        f.write(f"test accuracy:{ret_dict['test_acc']}, training_time_per_step: {ret_dict['training_time_per_step']}, total_train_time: {ret_dict['total_train_time']} , save_model_str:{ret_dict['save_model_str']}, and GPU used: {ret_dict['GPU']}\n")
+        f.close()

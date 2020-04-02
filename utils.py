@@ -20,31 +20,31 @@ class AccuracyMeter(object):
         self.reset()
     
     def reset(self):
-        self.stats = {'acc': 0.0, 'loss': 0.0}
+        self.stats = {'acc': [], 'loss': []}
         self.cnt = 0
         self.time = 0.0
     
     def update(self, stats, time, n=1):
-        self.stats = stats
+        self.stats['acc'].append(stats['acc'])
+        self.stats['loss'].append(stats['loss'])
         self.cnt += n
         self.time += time
-        logging.info(f"{self.name}_acc: {stats['acc']}, time for step{self.cnt}: {time}, total train time: {self.time}")
-        self.file.write(f"{self.name}_acc: {stats['acc']}, time for step{self.cnt}: {time}, total train time: {self.time}\n")
-
+        logging.info(f"{self.name}_acc: {stats['acc']}, time for step{self.cnt}: {round(time, 2)}, total {self.name} time: {round(self.time, 2)}")
+        self.file.write(f"{self.name}_acc: {stats['acc']}, time for step{self.cnt}: {round(time, 2)}, total {self.name} time: {round(self.time, 2)}\n")
+    def get(self):
+        return self.stats, self.cnt, self.time
     def plot(self, out_dir):
-        legends = list()
-        for key in self.stats.keys():
-            legends.append(f'{self.name}_{key}')
-            plt.plot(self.stats[key], range(self.cnt))
-            plt.title(f'Model {self.name}_{key}')
-            plt.ylabel(f'Loss {self.name}_{key}')
-            plt.xlabel('Epoch')
-            plt.xticks(np.arange(0, self.cnt, 1.0))
-        plt.legend(legends, loc='upper left') 
         out_dir = os.path.join(out_dir, 'plots')
         if not os.path.exists(out_dir):
             os.mkdir(out_dir)
-        plt.savefig(f"{os.path.join(out_dir, f'{self.name}_{key}')}.png")
+        for key in self.stats.keys():
+            plt.plot(self.stats[key])
+            plt.title(f'Model {self.name}_{key}')
+            plt.ylabel(f'Loss {self.name}_{key}')
+            plt.xlabel('Epoch')
+            plt.xticks(np.arange(0, self.cnt, 5))
+            plt.savefig(f"{os.path.join(out_dir, f'{self.name}_{key}')}.png")
+            plt.close()
         self.file.close()
         
 
