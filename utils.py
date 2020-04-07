@@ -6,11 +6,26 @@ import os
 torch.set_default_tensor_type('torch.cuda.FloatTensor')
 import logging
 logging.basicConfig(level=logging.INFO)
+
+def preprocess(dataset, transforms):
+    dataset = copy.copy(dataset) #shallow copy
+    for transform in transforms:
+        dataset['data'] = transform(dataset['data'])
+    return dataset
+
+# functions to show an image
+def imshow(img):
+    img = img / 2 + 0.5     # unnormalize
+    npimg = img.numpy()
+    plt.imshow(np.transpose(npimg, (1, 2, 0)))
+    plt.show()
+
 def preprocess(dataset, transforms):
     dataset = copy.copy(dataset)
     for transform in reversed(transforms):
-        dataset['data'] = transform(dataset['data'])
+        dataset.data = transform(dataset.data)
     return dataset
+
 
 class AccuracyMeter(object):
     
@@ -47,7 +62,13 @@ class AccuracyMeter(object):
             plt.close()
         self.file.close()
         
-
+def write_to_file(save_dict, file_name):
+    fo = open(file_name, "a")
+    for k, v in ret_dict.items():
+        fo.write(str(k) + ' >>> '+ str(v) + '\t\t')
+    fo.write('\n')
+    fo.close()
+    
 class AverageMeter(object):
 
     def __init__(self):

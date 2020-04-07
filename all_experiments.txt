@@ -1,0 +1,1 @@
+test accuracy:72.61, training_time_per_step: 15.47, total_train_time: 541.336631 , save_model_str:./models/model_(2020-04-02 12:38:21.340470), and GPU used: GeForce GTX TITAN Black

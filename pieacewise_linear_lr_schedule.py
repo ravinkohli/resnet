@@ -27,14 +27,3 @@ class PiecewiseLinearLR(lr_scheduler._LRScheduler):
         # return (self.schedule[i+1]-self.schedule[i])/(self.milestones[i+1]- self.milestones[i]) * self.last_epoch
         
 
-# def get_change_scale(scheduler, init_scale=1.0):
-#     def schedule(e, scale=None, **kwargs):
-#         lr = scheduler(e, **kwargs)
-#         return lr * (scale if scale is not None else init_scale)
-#     return schedule
-
-
-# def get_piecewise(knots, vals):
-#     def schedule(e, **kwargs):
-#         return np.interp([e], knots, vals)[0]
-#     return schedule
