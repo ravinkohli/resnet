@@ -10,6 +10,7 @@ main_args['name'] = 'skeleton'
 
 def get_dict():
     return main_args
+
 def get(key):
     if key in main_args.keys():
         return main_args[key]
