@@ -3,7 +3,6 @@ import numpy as np
 from torch.optim import lr_scheduler 
 import math
 import matplotlib.pyplot as plt
-from model import ResNet, ResidualBlock
 
 class PiecewiseLinearLR(lr_scheduler._LRScheduler):
     def __init__(self, optimizer, milestones=[0, 15, 30, 35], schedule=[0, 0.1, 0.005, 0], eta_min=0, last_epoch=-1):

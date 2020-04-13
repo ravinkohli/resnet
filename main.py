@@ -1,8 +1,9 @@
-from model import ResidualBlock, ResNet, build_network
+from model import ResNet, build_network, ResidualBlock, Network
 from train import train, infer
 from utils import AccuracyMeter, write_to_file
 from pieacewise_linear_lr_schedule import PiecewiseLinearLR #get_change_scale, get_piecewise
 import transform
+from torch_backend import BatchNorm
 from settings import get_dict
 from torch import nn
 import torch
@@ -13,7 +14,7 @@ import torch.optim as optim
 # from torch.utils.tensorboard import SummaryWriter
 from torch.utils.data.sampler import SubsetRandomSampler
 torch.set_default_tensor_type('torch.cuda.FloatTensor')
-
+torch.autograd.set_detect_anomaly(True)
 import matplotlib.pyplot as plt
 import numpy as np
 from sklearn.model_selection import train_test_split
@@ -25,9 +26,10 @@ import logging
 logging.basicConfig(level=logging.INFO)
 import skeleton
 import glob
+import sys
 
 def model_train(model, settings, criterion, trainloader, testloader, validloader, model_name):
-    num_epochs = settings['budget']
+    num_epochs = config['budget']
     success = False
     time_to_94 = None
     logging.info(f"{torch.cuda.is_available()}")
@@ -36,9 +38,9 @@ def model_train(model, settings, criterion, trainloader, testloader, validloader
     cudnn.enabled=True
     gpu = 'cuda:0'
     torch.cuda.set_device(gpu)
-
-    optimizer = optim.SGD(model.parameters(), lr=0.001) #), weight_decay=5e-4*batch_size, momentum=0.9)
-    lr_scheduler = PiecewiseLinearLR(optimizer, milestones=[0, 5, num_epochs], schedule=[0, 0.4, 0])
+    lrs = list()
+    optimizer = optim.SGD(model.parameters(), lr=0.001, weight_decay=config['weight_decay'], momentum=config['momentum'])
+    lr_scheduler = PiecewiseLinearLR(optimizer, milestones=config['milestones'], schedule=config['schedule'])
     save_model_str = './models/'
     
     if not os.path.exists(save_model_str):
@@ -55,7 +57,7 @@ def model_train(model, settings, criterion, trainloader, testloader, validloader
     train_meter = AccuracyMeter(model_dir=summary_dir, name='train')
     test_meter = AccuracyMeter(model_dir=summary_dir, name='test')
     valid_meter = AccuracyMeter(model_dir=summary_dir, name='valid')
-    lrs = list()
+    
     for epoch in range(num_epochs):
         lr = lr_scheduler.get_lr()[0]
         lrs.append(lr)
@@ -100,48 +102,9 @@ def model_train(model, settings, criterion, trainloader, testloader, validloader
                 }
     if success:
         return_dict['time_to_94'] = time_to_94
-    return_dict['model'] = model_name
     return return_dict
 
-def main_skeleton(settings):
-    model_name = settings['name']
-
-    timer = skeleton.utils.Timer()
-
-    cifar10_mean, cifar10_std = [
-    (125.31, 122.95, 113.87), # equals np.mean(cifar10()['train']['data'], axis=(0,1,2)) 
-    (62.99, 62.09, 66.70), # equals np.std(cifar10()['train']['data'], axis=(0,1,2))
-    ]
-    train_transform = [transforms.ToTensor(),
-        # transforms.Normalize(cifar10_mean, cifar10_std),
-        transform.TensorRandomCrop(30, 30),
-        transform.TensorRandomHorizontalFlip(),
-        transform.Cutout(8, 8)
-        ]
-    
-    test_transform =[transforms.ToTensor()
-        ]
-
-    batch_size = settings['batch_size']
-    
-    trainset = torchvision.datasets.CIFAR10(root='./data', train=True,
-                                            download=True)
-    testset = torchvision.datasets.CIFAR10(root='./data', train=False,
-                                        download=True)
-
-    trainloader = torch.utils.data.DataLoader(dataset=transform.Transform(trainset, train_transform),
-                                            batch_size=batch_size)              
-    
-    testloader = torch.utils.data.DataLoader(transform.Transform(testset, test_transform),
-                                            batch_size=batch_size,
-                                            shuffle=False)
-
-    classes = ('plane', 'car', 'bird', 'cat',
-            'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
-
-    
-    # steps_per_epoch = int(steps_per_epoch * 1.0)
-
+def get_skeleton_model(criterion):
     model = build_network()
     model.cuda()
     for module in model.modules():
@@ -160,11 +123,6 @@ def main_skeleton(settings):
             # torch.nn.init.kaiming_uniform_(module.weight, a=math.sqrt(5))  # original
             torch.nn.init.kaiming_uniform_(module.weight, mode='fan_in', nonlinearity='linear')
             # torch.nn.init.xavier_uniform_(module.weight, gain=1.)
-    
-
-    criterion = nn.CrossEntropyLoss(reduction='sum')
-    criterion.cuda()
-
     class ModelLoss(torch.nn.Module):
         def __init__(self, model, criterion):
             super(ModelLoss, self).__init__()
@@ -178,51 +136,42 @@ def main_skeleton(settings):
             loss = self.criterion(logits, targets)
             return logits, loss
     model = ModelLoss(model, criterion)
-    ret_dict = model_train(model, settings, criterion, trainloader, testloader, testloader, model_name)
-    return ret_dict
+    return model
     
-
-
-def main_self(settings):
-    model_name = settings['name']
+def main(config):
     cifar10_mean, cifar10_std = [
     (125.31, 122.95, 113.87), # equals np.mean(cifar10()['train']['data'], axis=(0,1,2)) 
     (62.99, 62.09, 66.70), # equals np.std(cifar10()['train']['data'], axis=(0,1,2))
     ]
+    
     train_transform = [
+        # transform.Pad(2),
         transforms.ToTensor(),
         # transforms.Normalize(cifar10_mean, cifar10_std),
-        transform.TensorRandomCrop(30, 30),
+        transform.TensorRandomCrop(32, 32),
         transform.TensorRandomHorizontalFlip(),
         transform.Cutout(8, 8)
         ]
 
     test_transform =[
+        # transform.Pad(2),
         transforms.ToTensor()
         # transform.Transpose(source='NHWC', target='NCHW'),
         ]
 
 
     batch_size = settings['batch_size']
-    split = settings['split']
 
     trainset = torchvision.datasets.CIFAR10(root='./data', train=True,
                                             download=True)
     testset = torchvision.datasets.CIFAR10(root='./data', train=False,
                                         download=True)
-
-    # indices = list(range(int(split*len(trainset))))
-    # valid_indices =  list(range(int(split*len(trainset)), len(trainset)))
+    print(trainset.data[0].shape)
+ 
     logging.info(f"Training size= {len(trainset)}")
-    # training_sampler = SubsetRandomSampler(indices)
-    # valid_sampler = SubsetRandomSampler(valid_indices)
-    trainloader = torch.utils.data.DataLoader(dataset=transform.Transform(trainset, train_transform),
-                                            batch_size=batch_size,
-                                            sampler=training_sampler) 
 
-    # validloader = torch.utils.data.DataLoader(dataset=transform.Transform(trainset, test_transform), 
-    #                                         batch_size=batch_size, 
-    #                                         sampler=valid_sampler)                
+    trainloader = torch.utils.data.DataLoader(dataset=transform.Transform(trainset, train_transform),
+                                            batch_size=batch_size)       
     
     testloader = torch.utils.data.DataLoader(transform.Transform(testset, test_transform),
                                             batch_size=batch_size,
@@ -230,47 +179,44 @@ def main_self(settings):
 
     classes = ('plane', 'car', 'bird', 'cat',
             'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
-    # cifar10_mean, cifar10_std = [
-    # (125.31, 122.95, 113.87), # equals np.mean(cifar10()['train']['data'], axis=(0,1,2)) 
-    # (62.99, 62.09, 66.70), # equals np.std(cifar10()['train']['data'], axis=(0,1,2))
-    # ]
-    # #####################
-    # ## data preprocessing
-    # #####################
-    # mean, std = [torch.tensor(x, device=device, dtype=torch.float16) for x in (cifar10_mean, cifar10_std)]
 
-    # normalise = lambda data, mean=mean, std=std: (data - mean)/std
-    # unnormalise = lambda data, mean=mean, std=std: data*std + mean
-    # pad = lambda data, border: nn.ReflectionPad2d(border)(data)
-    # transpose = lambda x, source='NHWC', target='NCHW': x.permute([source.index(d) for d in target]) 
-    # to = lambda *args, **kwargs: (lambda x: x.to(*args, **kwargs))
-
-
-    model = ResNet(ResidualBlock, [1, 1, 1], initial_depth=64)
-    model.cuda()
-    # [1, 1, 1]
-    # [2, 2, 2, 2]
-    total_model_params = np.sum(p.numel() for p in model.parameters())
     criterion = nn.CrossEntropyLoss(reduction='sum')
     criterion.cuda()
     # logging.info("param size = %fMB", utils.count_parameters_in_MB(model))
-    ret_dict = model_train(model, settings, criterion, trainloader, testloader, testloader, model_name)
-    return ret_dict
-
-def main():
-    settings = get_dict()
-    if settings['name'] =='skeleton':
-        ret_dict = main_skeleton(settings)
+    model_name = config['model']
+    # steps_per_epoch = int(steps_per_epoch * 1.0)
+    logging.info(f"Model:{model_name}")
+    if model_name =='skeleton':
+        criterion = nn.CrossEntropyLoss(reduction='sum')
+        criterion.cuda()
+        model = get_skeleton_model(criterion)
+        model.cuda()
+    elif model_name == 'self-vanilla':
+        model = ResNet(ResidualBlock, [1, 1, 1], initial_depth=64, batch_norm=config['batch_norm'])
+        model.cuda()
+    elif model_name == 'self-david':
+        model = Network(batch_norm=config['batch_norm'])
+        model.cuda()
     else:
-        ret_dict = main_self(settings)
-    # with open('all_experiments.txt', 'a') as f:
-    #     f.write(f"test accuracy:{ret_dict['test_acc']}, training_time_per_step: {ret_dict['training_time_per_step']}, total_train_time: {ret_dict['total_train_time']} , save_model_str:{ret_dict['save_model_str']}, model:{ret_dict['model']}, and GPU used: {ret_dict['GPU']}\n")
-    #     f.close()
+        logging.error('incorrect model')
+        sys.exit()
+
+    ret_dict = model_train(model, settings, criterion, trainloader, testloader, testloader, model_name)
 
     file_name = "experiments.txt"
     write_to_file(ret_dict, file_name)
-    write_to_file(settings, file_name)
+    write_to_file(config, file_name)
 
 
 if __name__ == '__main__':
-    main()    
+    settings = get_dict()
+    config = dict()
+    config['batch_size'] = settings['batch_size']
+    config['budget'] = settings['budget']
+    config['model'] = settings['name']
+    config['weight_decay'] = 0 #5e-4*config['batch_size']
+    config['momentum'] = 1 #0.9
+    config['milestones'] = [0, 5, config['budget']]
+    config['schedule'] = [0, 0.4, 0]
+    config['batch_norm'] = BatchNorm
+    main(config)    

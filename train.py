@@ -5,6 +5,7 @@ logging.basicConfig(level=logging.INFO)
 import torch
 from utils import AverageMeter, accuracy, plot_classes_preds
 torch.set_default_tensor_type('torch.cuda.FloatTensor')
+torch.autograd.set_detect_anomaly(True)
 
 def train(trainloader, model, criterion, optimizer, name):
     if name == 'skeleton':
@@ -22,6 +23,7 @@ def train_self(trainloader, model, criterion, optimizer):
     for step, (input, target) in enumerate(trainloader, 0):
 
         # zero the parameter gradients
+        # print(input.shape)
         optimizer.zero_grad()
         input = input.cuda()
         target = target.cuda(non_blocking=True)

@@ -34,3 +34,19 @@ class GhostBatchNorm(BatchNorm):
             return nn.functional.batch_norm(
                 input, self.running_mean[:self.num_features], self.running_var[:self.num_features], 
                 self.weight, self.bias, False, self.momentum, self.eps)
+
+
+class Flatten(nn.Module):
+    def __init__(self):
+        super(Flatten, self).__init__()
+
+    def forward(self, x):
+        return x.view(x.size(0), -1)
+
+class Mul(nn.Module):
+    def __init__(self, weight):
+        super().__init__()
+        self.weight = weight
+    def __call__(self, x): 
+        return x*self.weight
+  

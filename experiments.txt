@@ -1,0 +1,34 @@
+test_acc: 10.0 save_model_str: ./models/model_(2020-04-08 14:00:14.958851) training_time_per_step: 86.07 total_train_time: 2582.187504 total_time: 2753.45 GPU: GeForce GTX TITAN Black model: skeleton 
+batch_size: 8 budget: 30 split: 0.8 name: skeleton 
+test_acc: 80.81 save_model_str: ./models/model_(2020-04-08 14:17:30.826338) training_time_per_step: 80.73 total_train_time: 2421.760285 total_time: 2603.0 GPU: GeForce GTX TITAN Black model: self 
+batch_size: 8 budget: 30 split: 0.8 name: self 
+test_acc: 9.98 save_model_str: ./models/model_(2020-04-08 14:00:15.101624) training_time_per_step: 115.22 total_train_time: 3456.6277299999997 total_time: 3652.3 GPU: GeForce GTX TITAN Black model: skeleton 
+batch_size: 8 budget: 30 split: 0.8 name: skeleton 
+test_acc: 80.86	save_model_str: ./models/model_(2020-04-08 14:56:16.553267)	training_time_per_step: 44.07	total_train_time: 1321.9733959999999	total_time: 1420.94	GPU: GeForce GTX TITAN Black	model: self	
+batch_size: 8	budget: 30	split: 0.8	name: self	
+test_acc: 76.88	save_model_str: ./models/model_(2020-04-08 23:21:12.656031)	training_time_per_step: 32.76	total_train_time: 982.789934	total_time: 1048.99	GPU: GeForce GTX TITAN Black	model: self	
+batch_size: 16	budget: 30	split: 0.8	name: self	
+test_acc: 81.18	save_model_str: ./models/model_(2020-04-08 23:21:42.704563)	training_time_per_step: 34.54	total_train_time: 1036.1794289999998	total_time: 1106.45	GPU: GeForce GTX TITAN Black	model: self	
+batch_size: 16	budget: 30	split: 0.8	name: self	
+test_acc: 10.0	save_model_str: ./models/model_(2020-04-08 23:45:19.575126)	training_time_per_step: 25.61	total_train_time: 768.3531019999998	total_time: 818.13	GPU: GeForce GTX TITAN Black	model: self	
+batch_size: 32	budget: 30	split: 0.8	name: self	
+test_acc: 31.31	save_model_str: ./models/model_(2020-04-09 11:10:13.464080)	training_time_per_step: 26.95	total_train_time: 808.4030230000001	total_time: 860.13	GPU: GeForce GTX TITAN X	model: self	
+batch_size: 32	budget: 30	split: 0.8	name: self	
+test_acc: 71.25	save_model_str: ./models/model_(2020-04-09 11:28:30.016294)	training_time_per_step: 25.37	total_train_time: 761.0398799999999	total_time: 810.91	GPU: GeForce GTX TITAN Black	model: self	
+batch_size: 32	budget: 30	split: 0.8	name: self	
+test_acc: 36.21	save_model_str: ./models/model_(2020-04-09 11:35:24.444532)	training_time_per_step: 25.87	total_train_time: 776.1180380000001	total_time: 828.51	GPU: GeForce GTX TITAN X	model: self	
+batch_size: 32	budget: 30	split: 0.8	name: self	
+test_acc: 27.73	save_model_str: ./models/model_(2020-04-09 11:48:02.194027)	training_time_per_step: 27.99	total_train_time: 839.8045819999999	total_time: 900.91	GPU: GeForce GTX TITAN X	model: self	
+batch_size: 32	budget: 30	split: 0.8	name: self	
+test_acc: 77.51	save_model_str: ./models/model_(2020-04-09 11:53:01.861457)	training_time_per_step: 35.11	total_train_time: 1053.3086119999998	total_time: 1130.31	GPU: GeForce GTX TITAN X	model: self	
+batch_size: 16	budget: 30	split: 0.8	name: self	
+test_acc: 12.1	save_model_str: ./models/model_(2020-04-09 11:59:42.871033)	training_time_per_step: 45.88	total_train_time: 1376.508589	total_time: 1475.09	GPU: GeForce GTX TITAN X	model: skeleton	
+batch_size: 16	budget: 30	split: 0.8	name: skeleton	
+test_acc: 81.12	save_model_str: ./models/model_(2020-04-09 12:13:31.556808)	training_time_per_step: 38.53	total_train_time: 1155.87375	total_time: 1245.89	GPU: GeForce GTX TITAN X	model: self	
+batch_size: 16	budget: 30	split: 0.8	name: self	
+test_acc: 62.86	save_model_str: ./models/model_(2020-04-09 12:27:28.694282)	training_time_per_step: 29.39	total_train_time: 881.666552	total_time: 945.33	GPU: GeForce GTX TITAN X	model: self	
+batch_size: 32	budget: 30	split: 0.8	name: self	
+test_acc: 10.0	save_model_str: ./models/model_(2020-04-09 12:45:29.404951)	training_time_per_step: 29.08	total_train_time: 872.5257539999999	total_time: 930.41	GPU: GeForce GTX TITAN X	model: self	
+batch_size: 32	budget: 30	split: 0.8	name: self	
+test_acc: 10.0	save_model_str: ./models/model_(2020-04-13 14:24:51.205606)	training_time_per_step: 90.99	total_train_time: 2729.741534	total_time: 2892.95	GPU: GeForce GTX TITAN X	
+batch_size: 16	budget: 30	model: self-vanilla	weight_decay: 0.008	momentum: 0.9	milestones: [0, 5, 30]	schedule: [0, 0.4, 0]	batch_norm: <class 'torch_backend.BatchNorm'>	

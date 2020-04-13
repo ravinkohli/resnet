@@ -7,11 +7,11 @@ torch.set_default_tensor_type('torch.cuda.FloatTensor')
 import logging
 logging.basicConfig(level=logging.INFO)
 
-def preprocess(dataset, transforms):
-    dataset = copy.copy(dataset) #shallow copy
-    for transform in transforms:
-        dataset['data'] = transform(dataset['data'])
-    return dataset
+# def preprocess(dataset, transforms):
+#     dataset = copy.copy(dataset) #shallow copy
+#     for transform in transforms:
+#         dataset['data'] = transform(dataset['data'])
+#     return dataset
 
 # functions to show an image
 def imshow(img):
@@ -26,7 +26,7 @@ def preprocess(dataset, transforms):
         dataset.data = transform(dataset.data)
     return dataset
 
-
+ 
 class AccuracyMeter(object):
     
     def __init__(self, name, model_dir):
@@ -64,8 +64,8 @@ class AccuracyMeter(object):
         
 def write_to_file(save_dict, file_name):
     fo = open(file_name, "a")
-    for k, v in ret_dict.items():
-        fo.write(str(k) + ' >>> '+ str(v) + '\t\t')
+    for k, v in save_dict.items():
+        fo.write(str(k) + ': '+ str(v) + '\t')
     fo.write('\n')
     fo.close()
     
@@ -151,3 +151,29 @@ def plot_classes_preds(net, images, labels):
             classes[labels[idx]]),
                     color=("green" if preds[idx]==labels[idx].item() else "red"))
     return fig
+
+
+# trainset = torchvision.datasets.CIFAR10(root='./data', train=True,
+#                                             download=True)
+#     testset = torchvision.datasets.CIFAR10(root='./data', train=False,
+#                                         download=True)
+#     print(trainset.data[0].shape)
+#     # indices = list(range(int(split*len(trainset))))
+#     # valid_indices =  list(range(int(split*len(trainset)), len(trainset)))
+#     logging.info(f"Training size= {len(trainset)}")
+#     # training_sampler = SubsetRandomSampler(indices)
+#     # valid_sampler = SubsetRandomSampler(valid_indices)
+#     trainloader = torch.utils.data.DataLoader(dataset=transform.Transform(trainset, train_transform),
+#                                             batch_size=batch_size) #,
+#                                             #sampler=training_sampler) 
+
+#     # validloader = torch.utils.data.DataLoader(dataset=transform.Transform(trainset, test_transform), 
+#     #                                         batch_size=batch_size, 
+#     #                                         sampler=valid_sampler)                
+    
+#     testloader = torch.utils.data.DataLoader(transform.Transform(testset, test_transform),
+#                                             batch_size=batch_size,
+#                                             shuffle=False)
+
+#     classes = ('plane', 'car', 'bird', 'cat',
+#             'deer', 'dog', 'frog', 'horse', 'ship', 'truck')

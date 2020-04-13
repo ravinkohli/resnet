@@ -3,6 +3,7 @@ from kakao dawnbench submission, https://github.com/wbaek/torchskeleton/releases
 """
 import torch
 import numpy as np
+import torchvision
 
 class Cutout:
     def __init__(self, height, width):
@@ -54,6 +55,13 @@ class Transpose:
     
     def __call__(self, tensor):
         return tensor.permute([self.source.index(d) for d in self.target]) 
+
+class Pad:
+    def __init__(self, padding):
+        self.padding = padding
+    
+    def __call__(self, tensor):
+        return torchvision.transforms.functional.pad(tensor, self.padding, padding_mode='reflect')
 
 
 
