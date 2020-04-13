@@ -97,7 +97,7 @@ class ResNet(nn.Module):
         return x
 
 
-def conv_bn_skeleton(channels_in, channels_out, batch_norm, kernel_size=3, stride=1, padding=1, groups=1, bn=True, activation=True):
+def conv_bn_skeleton(channels_in, channels_out, kernel_size=3, stride=1, padding=1, groups=1, bn=True, activation=True):
     op = [
             torch.nn.Conv2d(channels_in, channels_out,
                             kernel_size=kernel_size, stride=stride, padding=padding, groups=groups, bias=False),

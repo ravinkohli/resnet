@@ -28,7 +28,7 @@ import skeleton
 import glob
 import sys
 
-def model_train(model, settings, criterion, trainloader, testloader, validloader, model_name):
+def model_train(model, config, criterion, trainloader, testloader, validloader, model_name):
     num_epochs = config['budget']
     success = False
     time_to_94 = None
@@ -160,7 +160,7 @@ def main(config):
         ]
 
 
-    batch_size = settings['batch_size']
+    batch_size = config['batch_size']
 
     trainset = torchvision.datasets.CIFAR10(root='./data', train=True,
                                             download=True)
@@ -201,7 +201,7 @@ def main(config):
         logging.error('incorrect model')
         sys.exit()
 
-    ret_dict = model_train(model, settings, criterion, trainloader, testloader, testloader, model_name)
+    ret_dict = model_train(model, config, criterion, trainloader, testloader, testloader, model_name)
 
     file_name = "experiments.txt"
     write_to_file(ret_dict, file_name)
@@ -214,8 +214,8 @@ if __name__ == '__main__':
     config['batch_size'] = settings['batch_size']
     config['budget'] = settings['budget']
     config['model'] = settings['name']
-    config['weight_decay'] = 0 #5e-4*config['batch_size']
-    config['momentum'] = 1 #0.9
+    config['weight_decay'] =  5e-4*config['batch_size']
+    config['momentum'] = 0.9
     config['milestones'] = [0, 5, config['budget']]
     config['schedule'] = [0, 0.4, 0]
     config['batch_norm'] = BatchNorm

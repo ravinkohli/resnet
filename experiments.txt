@@ -32,3 +32,17 @@ test_acc: 10.0	save_model_str: ./models/model_(2020-04-09 12:45:29.404951)	train
 batch_size: 32	budget: 30	split: 0.8	name: self	
 test_acc: 10.0	save_model_str: ./models/model_(2020-04-13 14:24:51.205606)	training_time_per_step: 90.99	total_train_time: 2729.741534	total_time: 2892.95	GPU: GeForce GTX TITAN X	
 batch_size: 16	budget: 30	model: self-vanilla	weight_decay: 0.008	momentum: 0.9	milestones: [0, 5, 30]	schedule: [0, 0.4, 0]	batch_norm: <class 'torch_backend.BatchNorm'>	
+test_acc: 10.0	save_model_str: ./models/model_(2020-04-13 14:49:34.304204)	training_time_per_step: 106.36	total_train_time: 3190.78532	total_time: 3394.34	GPU: GeForce GTX TITAN X	
+batch_size: 16	budget: 30	model: self-david	weight_decay: 0.008	momentum: 0.9	milestones: [0, 5, 30]	schedule: [0, 0.4, 0]	batch_norm: <class 'torch_backend.BatchNorm'>	
+test_acc: 79.8	save_model_str: ./models/model_(2020-04-13 15:47:31.657250)	training_time_per_step: 71.21	total_train_time: 2136.248621	total_time: 2225.86	GPU: GeForce GTX TITAN X	
+batch_size: 16	budget: 30	model: self-vanilla	weight_decay: 0	momentum: 0	milestones: [0, 5, 30]	schedule: [0, 0.4, 0]	batch_norm: <class 'torch_backend.BatchNorm'>	
+test_acc: 88.08	save_model_str: ./models/model_(2020-04-13 15:48:01.978741)	training_time_per_step: 80.08	total_train_time: 2402.5451810000004	total_time: 2512.66	GPU: GeForce GTX TITAN X	
+batch_size: 16	budget: 30	model: self-david	weight_decay: 0	momentum: 0	milestones: [0, 5, 30]	schedule: [0, 0.4, 0]	batch_norm: <class 'torch_backend.BatchNorm'>	
+test_acc: 10.01	save_model_str: ./models/model_(2020-04-13 16:16:27.330783)	training_time_per_step: 73.03	total_train_time: 2190.8058829999995	total_time: 2278.11	GPU: GeForce GTX TITAN X	
+batch_size: 16	budget: 30	model: skeleton	weight_decay: 0	momentum: 0	milestones: [0, 5, 30]	schedule: [0, 0.4, 0]	batch_norm: <class 'torch_backend.BatchNorm'>	
+test_acc: 80.22	save_model_str: ./models/model_(2020-04-13 16:42:16.750231)	training_time_per_step: 60.19	total_train_time: 1805.7524400000004	total_time: 1872.32	GPU: GeForce GTX TITAN Black	
+batch_size: 16	budget: 30	model: self-vanilla	weight_decay: 0	momentum: 0	milestones: [0, 5, 30]	schedule: [0, 0.4, 0]	batch_norm: <class 'torch_backend.BatchNorm'>	
+test_acc: 88.25	save_model_str: ./models/model_(2020-04-13 16:40:58.541765)	training_time_per_step: 91.19	total_train_time: 2735.591831	total_time: 2877.19	GPU: GeForce GTX TITAN Black	
+batch_size: 16	budget: 30	model: self-david	weight_decay: 0	momentum: 0	milestones: [0, 5, 30]	schedule: [0, 0.4, 0]	batch_norm: <class 'torch_backend.BatchNorm'>	
+test_acc: 88.4	save_model_str: ./models/model_(2020-04-13 16:40:12.090680)	training_time_per_step: 125.51	total_train_time: 3765.3774660000004	total_time: 3944.75	GPU: GeForce GTX TITAN Black	
+batch_size: 16	budget: 30	model: self-david	weight_decay: 0	momentum: 0	milestones: [0, 5, 30]	schedule: [0, 0.4, 0]	batch_norm: <class 'torch_backend.BatchNorm'>	
