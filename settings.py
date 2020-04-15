@@ -6,7 +6,7 @@ main_args=dict()
 main_args['batch_size'] = 32
 main_args['budget'] = 30
 main_args['split'] = 1
-main_args['name'] = 'self-vanilla' #'skeleton'#'self-vanilla'
+main_args['name'] = 'self-david' #'skeleton'#'self-vanilla'
 
 def get_dict():
     return main_args
