@@ -177,3 +177,6 @@ def plot_classes_preds(net, images, labels):
 
 #     classes = ('plane', 'car', 'bird', 'cat',
 #             'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
+
+def count_parameters_in_MB(model):
+  return np.sum(np.prod(v.size()) for name, v in model.named_parameters() if "auxiliary" not in name)/1e6

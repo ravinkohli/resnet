@@ -9,53 +9,87 @@ torch.set_default_tensor_type('torch.cuda.FloatTensor')
 torch.autograd.set_detect_anomaly(True)
 # import sys
 
-def train(trainloader, model, criterion, optimizer, name):
-    if name == 'skeleton':
-        top1_avg, objs_avg, a = train_skeleton(trainloader, model, optimizer)
-    else:
-        top1_avg, objs_avg, a = train_self(trainloader, model, criterion, optimizer)
+def train(trainloader, model, criterion, optimizer, name, clip, prefetch=True):
+    if prefetch:
+        top1_avg, objs_avg, a = train_prefetch(trainloader, model, criterion, optimizer, clip)
+    elif name == 'skeleton':
+        top1_avg, objs_avg, a = train_skeleton(trainloader, model, optimizer, clip)
+    elif 'self' in name:
+        top1_avg, objs_avg, a = train_self(trainloader, model, criterion, optimizer,clip)
+        
     return top1_avg, objs_avg, a
 
-def train_self(trainloader, model, criterion, optimizer):
+def train_prefetch(trainloader, model, criterion, optimizer, clip):
+    logging.info("in prefetch")
     c = datetime.datetime.now()
     objs = AverageMeter()
     top1 = AverageMeter()
     top5 = AverageMeter()
     model.train()
-    for step, (input, target) in enumerate(trainloader, 0):
-
-        # zero the parameter gradients
-        # print(input.shape)
+    inputs, targets = trainloader.next()
+    step = 0
+    while inputs is not None:
         optimizer.zero_grad()
-        # torchvision.utils.save_image(input, f'input_{step}.png')
-        # sys.exit()
-        input = input.cuda()
-        target = target.cuda(non_blocking=True)
-        # input.to(dtype=torch.half)
-        logits = model(input)
-
-        loss = criterion(logits, target)
-        loss.backward()
+        logits = model(inputs)
+        loss = criterion(logits, targets)
+        loss.sum().backward()
+        torch.nn.utils.clip_grad_norm_(model.parameters(), clip)
         optimizer.step()
 
-        prec1, prec5 = accuracy(logits, target, topk=(1, 5))
-        n = input.size(0)
+        prec1, prec5 = accuracy(logits, targets, topk=(1, 5))
+        n = inputs.size(0)
         objs.update(loss.data.item(), n)
         top1.update(prec1.data.item(), n)
         top5.update(prec5.data.item(), n)
 
         # if step % report_freq == 0:
         #     logging.info('train %03d %e %f %f', step, objs.avg, top1.avg, top5.avg)            
+        inputs, targets = trainloader.next()
+    
     a = datetime.datetime.now() - c
     return top1.avg, objs.avg, a
 
-def train_skeleton(trainloader, model, optimizer):
+
+def train_self(trainloader, model, criterion, optimizer, clip):
     c = datetime.datetime.now()
     objs = AverageMeter()
     top1 = AverageMeter()
     top5 = AverageMeter()
     model.train()
-    for step, (input, target) in enumerate(trainloader, 0):
+    for step, (inputs, target) in enumerate(trainloader, 0):
+        # zero the parameter gradients
+        # print(inputs.shape)
+        optimizer.zero_grad()
+        # torchvision.utils.save_image(inputs, f'inputs_{step}.png')
+        # sys.exit()
+        inputs = inputs.cuda()
+        target = target.cuda(non_blocking=True)
+        # inputs.to(dtype=torch.half)
+        logits = model(inputs)
+
+        loss = criterion(logits, target)
+        loss.sum().backward()
+        torch.nn.utils.clip_grad_norm_(model.parameters(), clip)
+        optimizer.step()
+
+        prec1, prec5 = accuracy(logits, target, topk=(1, 5))
+        n = inputs.size(0)
+        objs.update(loss.data.item(), n)
+        top1.update(prec1.data.item(), n)
+        top5.update(prec5.data.item(), n)
+
+        # if step % report_freq == 0:
+        #     logging.info('train %03d %e %f %f', step, objs.avg, top1.avg, top5.avg)  
+    a = datetime.datetime.now() - c
+    return top1.avg, objs.avg, a
+
+def train_skeleton(trainloader, model, optimizer, clip):
+    c = datetime.datetime.now()
+    objs = AverageMeter()
+    top1 = AverageMeter()
+    top5 = AverageMeter()
+    model.train()
+    for step, (inputs, target) in enumerate(trainloader, 0):
 
         # zero the parameter gradients
         optimizer.zero_grad()
@@ -65,6 +99,7 @@ def train_skeleton(trainloader, model, optimizer):
         logits, loss = model(input, target)
 
         loss.sum().backward()
+        torch.nn.utils.clip_grad_norm_(model.parameters(), clip)
         optimizer.step()
 
         prec1, prec5 = accuracy(logits, target, topk=(1, 5))
@@ -78,14 +113,43 @@ def train_skeleton(trainloader, model, optimizer):
     a = datetime.datetime.now() - c
     return top1.avg, objs.avg, a
 
-def infer(valid_queue, model, criterion, name, type='valid'):
-    if name == 'skeleton':
-        top1_avg, objs_avg, a = infer_skeleton(valid_queue, model, type='valid')
-    else:
-        top1_avg, objs_avg, a = infer_self(valid_queue, model, criterion, type='valid')
+def infer(valid_queue, model, criterion, name, prefetch=True):
+    if prefetch:
+        top1_avg, objs_avg, a = infer_prefetch(valid_queue, model, criterion)
+    elif name == 'skeleton':
+        top1_avg, objs_avg, a = infer_skeleton(valid_queue, model)
+    elif 'self' in name:
+        top1_avg, objs_avg, a = infer_self(valid_queue, model, criterion)
+    
     return top1_avg, objs_avg, a
 
-def infer_self(valid_queue, model, criterion, type='valid'):
+def infer_prefetch(valid_queue, model, criterion):
+    logging.info('prefetch')
+    c = datetime.datetime.now()
+    objs = AverageMeter()
+    top1 = AverageMeter()
+    top5 = AverageMeter()
+    model.eval()
+    inputs, targets = valid_queue.next()
+    step = 0
+    with torch.no_grad():
+        while inputs is not None:
+            logits = model(inputs)
+            loss = criterion(logits, targets)
+
+            prec1, prec5 = accuracy(logits, targets, topk=(1, 5))
+            n = inputs.size(0)
+            objs.update(loss.data.item(), n)
+            top1.update(prec1.data.item(), n)
+            top5.update(prec5.data.item(), n)
+
+            # if step % report_freq == 0:
+            #     logging.info(f'{type}, {step}, {objs.avg}, {top1.avg}, {top5.avg}')
+            inputs, targets = valid_queue.next()
+    a = datetime.datetime.now() - c            
+    return top1.avg, objs.avg, a
+
+def infer_self(valid_queue, model, criterion):
     c = datetime.datetime.now()
     objs = AverageMeter()
     top1 = AverageMeter()
@@ -112,7 +176,7 @@ def infer_self(valid_queue, model, criterion, type='valid'):
     a = datetime.datetime.now() - c            
     return top1.avg, objs.avg, a
 
-def infer_skeleton(valid_queue, model, type='valid'):
+def infer_skeleton(valid_queue, model):
     c = datetime.datetime.now()
     objs = AverageMeter()
     top1 = AverageMeter()

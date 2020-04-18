@@ -1,9 +1,9 @@
 from model import ResNet, build_network, ResidualBlock, Network
 from train import train, infer
-from utils import AccuracyMeter, write_to_file
+from utils import AccuracyMeter, write_to_file, count_parameters_in_MB
 from pieacewise_linear_lr_schedule import PiecewiseLinearLR #get_change_scale, get_piecewise
 import transform
-from torch_backend import BatchNorm
+from torch_backend import BatchNorm, DataPrefetchLoader
 from settings import get_dict
 from torch import nn
 import torch
@@ -12,14 +12,13 @@ import torchvision.transforms as transforms
 import torch.backends.cudnn as cudnn
 import torch.optim as optim
 # from torch.utils.tensorboard import SummaryWriter
-from torch.utils.data.sampler import SubsetRandomSampler
+# from torch.utils.data.sampler import SubsetRandomSampler
 torch.set_default_tensor_type('torch.cuda.FloatTensor')
 torch.autograd.set_detect_anomaly(True)
 import matplotlib.pyplot as plt
 import matplotlib
 import numpy as np
 import wandb
-
 
 import pickle
 import datetime
@@ -41,8 +40,8 @@ def model_train(model, config, criterion, trainloader, testloader, validloader, 
     gpu = 'cuda:0'
     torch.cuda.set_device(gpu)
     lrs = list()
-    print(f"weight decay:\t{config['weight_decay']}")
-    print(f"momentum :\t{config['momentum']}")
+    logging.info(f"weight decay:\t{config['weight_decay']}")
+    logging.info(f"momentum :\t{config['momentum']}")
 
     optimizer = optim.SGD(model.parameters(), lr=0.001, weight_decay=config['weight_decay'], momentum=config['momentum'])
     lr_scheduler = PiecewiseLinearLR(optimizer, milestones=config['milestones'], schedule=config['schedule'])
@@ -68,28 +67,24 @@ def model_train(model, config, criterion, trainloader, testloader, validloader, 
         lrs.append(lr)
 
         logging.info('epoch %d lr %e', epoch, lr)
-
-        train_acc, train_obj, time = train(trainloader, model, criterion, optimizer, name=model_name)
+        
+        train_acc, train_obj, time = train(trainloader, model, criterion, optimizer, model_name, config['grad_clip'], config['prefetch'])
         
         train_meter.update({'acc': train_acc, 'loss': train_obj}, time.total_seconds())
         lr_scheduler.step()
-        valid_acc, valid_obj, time = infer(testloader, model, criterion, name=model_name)
+        valid_acc, valid_obj, time = infer(testloader, model, criterion, name=model_name,  prefetch=config['prefetch'])
         valid_meter.update({'acc': valid_acc, 'loss': valid_obj}, time.total_seconds())
         if valid_acc >=94:
             success = True
             time_to_94 = train_meter.time
             logging.info(f'Time to reach 94% {time_to_94}')  
-            wandb.log({
-        "Test Accuracy":valid_acc,
-        "Test Loss": valid_obj,
-        "Train Accuracy":train_acc,
-        "Train Loss": train_obj})  
+        # wandb.log({"Test Accuracy":valid_acc, "Test Loss": valid_obj, "Train Accuracy":train_acc, "Train Loss": train_obj})  
 
     a = datetime.datetime.now() - c
-    test_acc, test_obj, time = infer(testloader, model, criterion, type='test', name=model_name)
+    test_acc, test_obj, time = infer(testloader, model, criterion, name=model_name)
     test_meter.update({'acc': test_acc, 'loss': test_obj}, time.total_seconds())
     torch.save(model.state_dict(), f'{save_model_str}/state')
-    wandb.save('model.h5')
+    # wandb.save('model.h5')
     train_meter.plot(save_model_str)
     valid_meter.plot(save_model_str)
 
@@ -98,7 +93,7 @@ def model_train(model, config, criterion, trainloader, testloader, validloader, 
     plt.xlabel('Epochs')
     plt.ylabel('LR')
     plt.xticks(np.arange(0, num_epochs, 5))
-    plt.savefig('lr_schedule.png')
+    plt.savefig(f'{save_model_str}/lr_schedule.png')
     plt.close()
 
     total_time = round(a.total_seconds(), 2)
@@ -135,6 +130,7 @@ def get_skeleton_model(criterion):
             # torch.nn.init.kaiming_uniform_(module.weight, a=math.sqrt(5))  # original
             torch.nn.init.kaiming_uniform_(module.weight, mode='fan_in', nonlinearity='linear')
             # torch.nn.init.xavier_uniform_(module.weight, gain=1.)
+    
     class ModelLoss(torch.nn.Module):
         def __init__(self, model, criterion):
             super(ModelLoss, self).__init__()
@@ -176,25 +172,28 @@ def main(config):
     batch_size = config['batch_size']
 
     trainset = torchvision.datasets.CIFAR10(root='./data', train=True,
-                                            download=True)
+                                            download=False)
     testset = torchvision.datasets.CIFAR10(root='./data', train=False,
-                                        download=True)
+                                        download=False)
 
     logging.info(f"Training size= {len(trainset)}")
     trans_trainset = transform.Transform(trainset, train_transform)
     trainloader = torch.utils.data.DataLoader(dataset=trans_trainset,
-                                            batch_size=batch_size, shuffle=False)       
+                                            batch_size=batch_size, shuffle=True)       
 
     testloader = torch.utils.data.DataLoader(transform.Transform(testset, test_transform),
                                             batch_size=batch_size,
                                             shuffle=False)
+
+    if config['prefetch']:
+        trainloader = DataPrefetchLoader(trainloader)
+        testloader = DataPrefetchLoader(testloader)
 
     classes = ('plane', 'car', 'bird', 'cat',
             'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
 
     criterion = nn.CrossEntropyLoss(reduction='sum')
     criterion.cuda()
-    logging.info("param size = %fMB", utils.count_parameters_in_MB(model))
     model_name = config['model']
     # steps_per_epoch = int(steps_per_epoch * 1.0)
     logging.info(f"Model:{model_name}")
@@ -212,14 +211,19 @@ def main(config):
     else:
         logging.error('incorrect model')
         sys.exit()
-    wandb.init(entity='wandb', project='resnet-dawnbench')
-    wandb.watch_called = False
-    wandb.watch(model, log="all")
+    
+    logging.info("param size = %fMB", count_parameters_in_MB(model))
+    
+    # wandb.init(entity='wandb', project='resnet-dawnbench')
+    # wandb.watch_called = False
+    # wandb.watch(model, log="all", log_freq=1)
+    
     ret_dict = model_train(model, config, criterion, trainloader, testloader, testloader, model_name)
 
     file_name = "experiments.txt"
     write_to_file(ret_dict, file_name)
     write_to_file(config, file_name)
+    return ret_dict
 
 
 if __name__ == '__main__':
@@ -229,9 +233,11 @@ if __name__ == '__main__':
     config['budget'] = settings['budget']
     config['model'] = settings['name']
     config['weight_decay'] =  0 #5e-4*config['batch_size']
-    config['momentum'] = 0 #.9
+    config['momentum'] = 0#.9
     config['milestones'] = [0, 4, config['budget']]
-    config['schedule'] = [0, 0.4, 0]
+    config['schedule'] = [0, 0.1, 0]
     config['batch_norm'] = BatchNorm
     config['seed'] = 42
+    config['prefetch'] = False
+    config['grad_clip'] = 5
     main(config)
