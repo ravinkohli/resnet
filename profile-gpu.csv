@@ -1,0 +1,13 @@
+Serial No.,GPU,Batch Size,Time per Step,Accuracy,Clip,Batch Norm,Model
+1,GeForce GTX TITAN X,16,80.08,88.08,No,torch_backend,self-david
+2,GeForce GTX TITAN X,128,45.48,87.35,No,Torch,self-david
+3,GeForce GTX TITAN X,128,83.54,89.34,No,torch_backend,self-david
+4,GeForce GTX TITAN X,256,39.77,91.68,5,torch_backend,self-david
+5,GeForce GTX TITAN X,512,40.01,90.5900000244141,5,torch_backend,self-david
+6,GeForce GTX TITAN Black,8,80.73,80.81,No,Torch,Self
+7,GeForce GTX TITAN Black,16,34.54,81.18,No,Torch,Self
+8,GeForce GTX TITAN Black,16,60.19,80.22,No,torch_backend,self-vanilla
+9,GeForce GTX TITAN Black,16,91.19,88.25,No,torch_backend,self-david
+10,GeForce GTX TITAN Black,32,65.42,85.9,No,torch_backend,self-david
+11,GeForce GTX 1080 Ti,256,33.37,91.3,5,torch_backend,self-david
+12,GeForce GTX 1080 Ti,512,32.68,90.7199999023437,5,torch_backend,self-david

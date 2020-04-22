@@ -3,6 +3,7 @@ import torch
 from torch_backend import *
 # torch.set_default_tensor_type('torch.cuda.FloatTensor')
 import skeleton
+from utils import LayerTimer
 from collections import OrderedDict
 torch.autograd.set_detect_anomaly(True)
 
@@ -189,15 +190,24 @@ class conv_bn_self(nn.Module):
         super(conv_bn_self, self).__init__()
         
         self.conv = nn.Conv2d(c_in, c_out, kernel_size=kernel_size, stride=1, padding=1, bias=False)
+        self.conv_timer = LayerTimer('conv_bn-conv')
         self.bn = batch_norm(c_out) #nn.BatchNorm2d(self.depth)
+        self.bn_timer = LayerTimer('conv_bn-bn')
         self.activation=activation
         if self.activation:
             self.relu = nn.ReLU()
+            self.activ_timer = LayerTimer('conv_bn-relu')
     def forward(self, x):
+        self.conv_timer.start_time()
         x = self.conv(x)
+        self.conv_timer.step()
+        self.bn_timer.start_time()
         x = self.bn(x)
+        self.bn_timer.step()
         if self.activation:
+            self.activ_timer.start_time()
             x = self.relu(x)
+            self.activ_timer.step()
         return x
 
 class Residual(nn.Module):
@@ -241,6 +251,7 @@ class Network(nn.Module):
         ]))
         self.pool = nn.MaxPool2d(4)
         self.flatten = Flatten()
+        self.linear_timer = LayerTimer('linear')
         self.linear =  nn.Linear(channels['layer3'], 10, bias=False)
         self.mul = Mul(weight)
 
@@ -254,7 +265,9 @@ class Network(nn.Module):
         x = self.pool(x)
 
         x = self.flatten(x)
+        self.linear_timer.start_time()
         x = self.linear(x)
+        self.linear_timer.step()
         x = self.mul(x)
 
         return x

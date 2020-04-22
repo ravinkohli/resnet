@@ -1,6 +1,6 @@
 from model import ResNet, build_network, ResidualBlock, Network
 from train import train, infer
-from utils import AccuracyMeter, write_to_file, count_parameters_in_MB
+from utils import AccuracyMeter, write_to_file, count_parameters_in_MB, weights_init_uniform
 from pieacewise_linear_lr_schedule import PiecewiseLinearLR #get_change_scale, get_piecewise
 import transform
 from torch_backend import BatchNorm, DataPrefetchLoader
@@ -14,7 +14,7 @@ import torch.optim as optim
 # from torch.utils.tensorboard import SummaryWriter
 # from torch.utils.data.sampler import SubsetRandomSampler
 torch.set_default_tensor_type('torch.cuda.FloatTensor')
-torch.autograd.set_detect_anomaly(True)
+# torch.autograd.set_detect_anomaly(True)
 import matplotlib.pyplot as plt
 import matplotlib
 import numpy as np
@@ -81,7 +81,7 @@ def model_train(model, config, criterion, trainloader, testloader, validloader, 
         # wandb.log({"Test Accuracy":valid_acc, "Test Loss": valid_obj, "Train Accuracy":train_acc, "Train Loss": train_obj})  
 
     a = datetime.datetime.now() - c
-    test_acc, test_obj, time = infer(testloader, model, criterion, name=model_name)
+    test_acc, test_obj, time = infer(testloader, model, criterion, name=model_name, prefetch=config['prefetch'])
     test_meter.update({'acc': test_acc, 'loss': test_obj}, time.total_seconds())
     torch.save(model.state_dict(), f'{save_model_str}/state')
     # wandb.save('model.h5')
@@ -150,13 +150,13 @@ def main(config):
     cifar10_mean, cifar10_std = [
     (125.31, 122.95, 113.87), # equals np.mean(cifar10()['train']['data'], axis=(0,1,2)) 
     (62.99, 62.09, 66.70), # equals np.std(cifar10()['train']['data'], axis=(0,1,2))
-    ]
+    ]   
 
     torch.manual_seed(config['seed'])  
     train_transform = [
         # transform.Pad(2),
         transforms.ToTensor(),
-        # transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+        # transforms.Normalize(cifar10_mean, cifar10_std),
         transform.TensorRandomCrop(32, 32),
         transform.TensorRandomHorizontalFlip(),
         transform.Cutout(8, 8)
@@ -217,9 +217,39 @@ def main(config):
     # wandb.init(entity='wandb', project='resnet-dawnbench')
     # wandb.watch_called = False
     # wandb.watch(model, log="all", log_freq=1)
-    
+    # model.apply(weights_init_uniform)
     ret_dict = model_train(model, config, criterion, trainloader, testloader, testloader, model_name)
+    conv_stats = list()
+    bn_stats = list()
+    activ_stats = list()
+    linear_stats = list()
+    for module in model.modules():
+        if type(module).__name__ == 'Network':
+            linear_stats.append(module.linear_timer.get_stats())
+        elif type(module).__name__ == 'conv_bn_self':
+            conv_stats.append(module.conv_timer.get_stats())
+            bn_stats.append(module.bn_timer.get_stats())
+            activ_stats.append(module.activ_timer.get_stats())
+        # elif type(module).__name__ == 'Residual':
+        #     conv_stats.append(module.conv.conv_timer.get_stats())
+        #     bn_stats.append(module.conv.bn_timer.get_stats())
+        #     activ_stats.append(module.conv.activ_timer.get_stats())
+        #     conv_stats.append(module.conv.conv_timer.get_stats())
+        #     bn_stats.append(module.conv.bn_timer.get_stats())
+        #     activ_stats.append(module.conv.activ_timer.get_stats())
 
+    conv_stats = np.array(conv_stats) 
+    ret_dict['total_conv_time'] = np.sum(conv_stats, axis=0)[1]
+    ret_dict['total_bn_time'] = np.sum(bn_stats, axis=0)[1]
+    ret_dict['total_activ_time'] = np.sum(activ_stats, axis=0)[1]
+    ret_dict['total_linear_time'] = np.sum(linear_stats, axis=0)[1]
+    # write_stats_file(conv_stats, 'conv')
+    # write_stats_file(bn_stats, 'bn')
+    # write_stats_file(activ_stats, 'activ')
+    x = trainset.data[0]
+    with torch.autograd.profiler.profile(use_cuda=True) as profile:
+        model(x)
+        logging.info(profile)
     file_name = "experiments.txt"
     write_to_file(ret_dict, file_name)
     write_to_file(config, file_name)
@@ -232,7 +262,7 @@ if __name__ == '__main__':
     config['batch_size'] = settings['batch_size']
     config['budget'] = settings['budget']
     config['model'] = settings['name']
-    config['weight_decay'] =  0 #5e-4*config['batch_size']
+    config['weight_decay'] =  0#5e-4*config['batch_size']
     config['momentum'] = 0#.9
     config['milestones'] = [0, 4, config['budget']]
     config['schedule'] = [0, 0.1, 0]

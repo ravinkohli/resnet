@@ -104,3 +104,19 @@ test_acc: 0	save_model_str: ./models/model_(2020-04-18 21:18:53.254888)	training
 batch_size: 128	budget: 30	model: self-david	weight_decay: 0	momentum: 0	milestones: [0, 4, 30]	schedule: [0, 0.1, 0]	batch_norm: <class 'torch_backend.BatchNorm'>	seed: 42	prefetch: True	grad_clip: 5	
 test_acc: 0	save_model_str: ./models/model_(2020-04-18 21:20:35.040925)	training_time_per_step: 1.56	total_train_time: 46.66202000000001	total_time: 49.67	GPU: GeForce GTX TITAN X	
 batch_size: 128	budget: 30	model: self-david	weight_decay: 0	momentum: 0	milestones: [0, 4, 30]	schedule: [0, 0.1, 0]	batch_norm: <class 'torch_backend.BatchNorm'>	seed: 42	prefetch: True	grad_clip: 5	
+test_acc: 91.68	save_model_str: ./models/model_(2020-04-18 21:56:22.168476)	training_time_per_step: 39.77	total_train_time: 1193.240226	total_time: 1263.51	GPU: GeForce GTX TITAN X	
+batch_size: 256	budget: 30	model: self-david	weight_decay: 0	momentum: 0	milestones: [0, 4, 30]	schedule: [0, 0.1, 0]	batch_norm: <class 'torch_backend.BatchNorm'>	seed: 42	prefetch: False	grad_clip: 5	
+test_acc: 90.59000002441407	save_model_str: ./models/model_(2020-04-19 15:53:42.966499)	training_time_per_step: 40.01	total_train_time: 1200.3866580000001	total_time: 1271.39	GPU: GeForce GTX TITAN X	
+batch_size: 512	budget: 30	model: self-david	weight_decay: 0	momentum: 0	milestones: [0, 4, 30]	schedule: [0, 0.1, 0]	batch_norm: <class 'torch_backend.BatchNorm'>	seed: 42	prefetch: False	grad_clip: 5	
+test_acc: 12.47	save_model_str: ./models/model_(2020-04-19 16:21:53.062673)	training_time_per_step: 40.18	total_train_time: 1205.4869800000001	total_time: 1276.64	GPU: GeForce GTX TITAN X	
+batch_size: 256	budget: 30	model: self-david	weight_decay: 0.128	momentum: 0.9	milestones: [0, 4, 30]	schedule: [0, 0.1, 0]	batch_norm: <class 'torch_backend.BatchNorm'>	seed: 42	prefetch: False	grad_clip: 5	
+test_acc: 13.689999990844727	save_model_str: ./models/model_(2020-04-19 16:44:54.810456)	training_time_per_step: 39.66	total_train_time: 1189.6775539999999	total_time: 1262.17	GPU: GeForce GTX TITAN X	
+batch_size: 512	budget: 30	model: self-david	weight_decay: 0.256	momentum: 0.9	milestones: [0, 4, 30]	schedule: [0, 0.1, 0]	batch_norm: <class 'torch_backend.BatchNorm'>	seed: 42	prefetch: False	grad_clip: 5	
+test_acc: 14.689999992370605	save_model_str: ./models/model_(2020-04-19 17:20:25.838320)	training_time_per_step: 41.91	total_train_time: 1257.209818	total_time: 1339.13	GPU: GeForce GTX TITAN X	
+batch_size: 512	budget: 30	model: self-david	weight_decay: 0	momentum: 0	milestones: [0, 4, 30]	schedule: [0, 0.1, 0]	batch_norm: <class 'torch_backend.BatchNorm'>	seed: 42	prefetch: False	grad_clip: 5	
+test_acc: 91.3	save_model_str: ./models/model_(2020-04-20 12:56:54.268005)	training_time_per_step: 33.37	total_train_time: 1001.2221390000001	total_time: 1065.62	GPU: GeForce GTX 1080 Ti	
+batch_size: 256	budget: 30	model: self-david	weight_decay: 0	momentum: 0	milestones: [0, 4, 30]	schedule: [0, 0.1, 0]	batch_norm: <class 'torch_backend.BatchNorm'>	seed: 42	prefetch: False	grad_clip: 5	
+test_acc: 90.71999990234374	save_model_str: ./models/model_(2020-04-20 13:12:20.789713)	training_time_per_step: 32.68	total_train_time: 980.499568	total_time: 1045.25	GPU: GeForce GTX 1080 Ti	
+batch_size: 512	budget: 30	model: self-david	weight_decay: 0	momentum: 0	milestones: [0, 4, 30]	schedule: [0, 0.1, 0]	batch_norm: <class 'torch_backend.BatchNorm'>	seed: 42	prefetch: False	grad_clip: 5	
+test_acc: 91.6	save_model_str: ./models/model_(2020-04-20 18:57:29.810211)	training_time_per_step: 37.23	total_train_time: 1116.880281	total_time: 1189.57	GPU: GeForce GTX 1080 Ti	total_conv_time: 16.471791	total_bn_time: 16.943809	total_activ_time: 10.797529	total_linear_time: 2.1637269999999997	
+batch_size: 256	budget: 30	model: self-david	weight_decay: 0	momentum: 0	milestones: [0, 4, 30]	schedule: [0, 0.1, 0]	batch_norm: <class 'torch_backend.BatchNorm'>	seed: 42	prefetch: False	grad_clip: 5	

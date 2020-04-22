@@ -3,6 +3,7 @@ import numpy as np
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
 import os
+import datetime
 torch.set_default_tensor_type('torch.cuda.FloatTensor')
 import logging
 logging.basicConfig(level=logging.INFO)
@@ -180,3 +181,40 @@ def plot_classes_preds(net, images, labels):
 
 def count_parameters_in_MB(model):
   return np.sum(np.prod(v.size()) for name, v in model.named_parameters() if "auxiliary" not in name)/1e6
+
+def weights_init_uniform(m):
+        classname = m.__class__.__name__
+        print(classname)
+        # for every Linear layer in a model..
+        if classname.find('Linear') != -1:
+            # apply a uniform distribution to the weights and a bias=0
+            m.weight.data.fill_(0.0)
+            # m.bias.data.fill_(0)
+        elif classname.find('Conv') != -1:
+            # apply a uniform distribution to the weights and a bias=0
+            m.weight.data.fill_(0.0)
+            # m.bias.data.fill_(0)
+
+
+class LayerTimer:
+    def __init__(self, name):
+        self.name = name
+        self.total_time = 0
+        self.timer = None
+        self.times = list()
+    
+    def start_time(self):
+        self.timer = datetime.datetime.now()
+
+    def step(self):
+        time = -(self.timer - datetime.datetime.now()).total_seconds()
+        self.times.append(time)
+        self.timer = None
+    
+    def get_last_time(self):
+        return self.times[-1]
+    
+    def get_stats(self):
+        # with(f"{name}_stats.txt", 'w') as f:
+        #     f.write('Mean:' + str(np.mean(self.times)) + '\tTotal Time:'+ str(np.sum(self.times))) 
+        return np.mean(self.times), np.sum(self.times)

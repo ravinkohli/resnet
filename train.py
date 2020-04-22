@@ -77,7 +77,6 @@ def train_self(trainloader, model, criterion, optimizer, clip):
         objs.update(loss.data.item(), n)
         top1.update(prec1.data.item(), n)
         top5.update(prec5.data.item(), n)
-
         # if step % report_freq == 0:
         #     logging.info('train %03d %e %f %f', step, objs.avg, top1.avg, top5.avg)  
     a = datetime.datetime.now() - c
