@@ -1,9 +1,10 @@
-from model import ResNet, build_network, ResidualBlock, Network
+from model import ResNet, build_network, ResidualBlock, Network, conv_bn_act_pool, conv_bn_pool_act
 from train import train, infer
-from utils import AccuracyMeter, write_to_file, count_parameters_in_MB, weights_init_uniform
+from utils import AccuracyMeter, write_to_file, count_parameters_in_MB, weights_init_uniform, preprocess
 from pieacewise_linear_lr_schedule import PiecewiseLinearLR #get_change_scale, get_piecewise
 import transform
 from torch_backend import BatchNorm, DataPrefetchLoader
+from dataset import DataLoader
 from settings import get_dict
 from torch import nn
 import torch
@@ -44,7 +45,7 @@ def model_train(model, config, criterion, trainloader, testloader, validloader, 
     logging.info(f"momentum :\t{config['momentum']}")
 
     optimizer = optim.SGD(model.parameters(), lr=0.001, weight_decay=config['weight_decay'], momentum=config['momentum'])
-    lr_scheduler = PiecewiseLinearLR(optimizer, milestones=config['milestones'], schedule=config['schedule'])
+    lr_scheduler = PiecewiseLinearLR(optimizer, milestones=config['milestones'], schedule=config['schedule']) #torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, num_epochs) #
     save_model_str = './models/'
     
     if not os.path.exists(save_model_str):
@@ -147,25 +148,29 @@ def get_skeleton_model(criterion):
     return model
     
 def main(config):
-    cifar10_mean, cifar10_std = [
-    (125.31, 122.95, 113.87), # equals np.mean(cifar10()['train']['data'], axis=(0,1,2)) 
-    (62.99, 62.09, 66.70), # equals np.std(cifar10()['train']['data'], axis=(0,1,2))
-    ]   
 
+    CIFAR_MEAN = [0.49139968, 0.48215827, 0.44653124]
+    CIFAR_STD = [0.24703233, 0.24348505, 0.26158768]
     torch.manual_seed(config['seed'])  
-    train_transform = [
-        # transform.Pad(2),
-        transforms.ToTensor(),
-        # transforms.Normalize(cifar10_mean, cifar10_std),
+    preprocess_train_transforms = [
+        transform.Pad(4),
+        transform.Transpose(source='NHWC', target='NCHW'),
+        transform.Normalise(CIFAR_MEAN, CIFAR_STD),
+        transform.To(torch.float16),
+    ]
+
+    ## probably wont need to put input to half
+    train_transforms = [
+        # transforms.ToTensor(),
         transform.TensorRandomCrop(32, 32),
         transform.TensorRandomHorizontalFlip(),
         transform.Cutout(8, 8)
         ]
 
-    test_transform =[
-        # transform.Pad(2),
-        transforms.ToTensor()
-        # transform.Transpose(source='NHWC', target='NCHW'),
+    preprocess_test_transforms =[
+        transform.Transpose(source='NHWC', target='NCHW'),
+        transform.Normalise(CIFAR_MEAN, CIFAR_STD),  
+        transform.To(torch.float16),
         ]
 
 
@@ -175,15 +180,17 @@ def main(config):
                                             download=False)
     testset = torchvision.datasets.CIFAR10(root='./data', train=False,
                                         download=False)
-
+    process_trainset = preprocess(trainset, preprocess_train_transforms)
+    process_testset = preprocess(testset, preprocess_test_transforms)
     logging.info(f"Training size= {len(trainset)}")
-    trans_trainset = transform.Transform(trainset, train_transform)
-    trainloader = torch.utils.data.DataLoader(dataset=trans_trainset,
-                                            batch_size=batch_size, shuffle=True)       
+    trainloader = DataLoader(dataset=process_trainset, 
+                            transforms=train_transforms, 
+                            batch_size=batch_size, 
+                            shuffle=True)       
 
-    testloader = torch.utils.data.DataLoader(transform.Transform(testset, test_transform),
-                                            batch_size=batch_size,
-                                            shuffle=False)
+    testloader = DataLoader(dataset=process_testset, 
+                            batch_size=batch_size,
+                            shuffle=False)
 
     if config['prefetch']:
         trainloader = DataPrefetchLoader(trainloader)
@@ -201,13 +208,13 @@ def main(config):
         criterion = nn.CrossEntropyLoss(reduction='sum')
         criterion.cuda()
         model = get_skeleton_model(criterion)
-        model.cuda()
+        model.cuda().half()
     elif model_name == 'self-vanilla':
         model = ResNet(ResidualBlock, [1, 1, 1], initial_depth=64, batch_norm=config['batch_norm'])
-        model.cuda()
+        model.cuda().half()
     elif model_name == 'self-david':
-        model = Network(batch_norm=config['batch_norm'])
-        model.cuda()
+        model = Network(batch_norm=config['batch_norm'], conv_bn=config['conv_bn'])
+        model.cuda().half()
     else:
         logging.error('incorrect model')
         sys.exit()
@@ -219,37 +226,29 @@ def main(config):
     # wandb.watch(model, log="all", log_freq=1)
     # model.apply(weights_init_uniform)
     ret_dict = model_train(model, config, criterion, trainloader, testloader, testloader, model_name)
-    conv_stats = list()
-    bn_stats = list()
-    activ_stats = list()
-    linear_stats = list()
-    for module in model.modules():
-        if type(module).__name__ == 'Network':
-            linear_stats.append(module.linear_timer.get_stats())
-        elif type(module).__name__ == 'conv_bn_self':
-            conv_stats.append(module.conv_timer.get_stats())
-            bn_stats.append(module.bn_timer.get_stats())
-            activ_stats.append(module.activ_timer.get_stats())
-        # elif type(module).__name__ == 'Residual':
-        #     conv_stats.append(module.conv.conv_timer.get_stats())
-        #     bn_stats.append(module.conv.bn_timer.get_stats())
-        #     activ_stats.append(module.conv.activ_timer.get_stats())
-        #     conv_stats.append(module.conv.conv_timer.get_stats())
-        #     bn_stats.append(module.conv.bn_timer.get_stats())
-        #     activ_stats.append(module.conv.activ_timer.get_stats())
+    # conv_stats = list()
+    # bn_stats = list()
+    # activ_stats = list()
+    # linear_stats = list()
+    # for module in model.modules():
+    #     if type(module).__name__ == 'Network':
+    #         linear_stats.append(module.linear_timer.get_stats())
+    #     elif type(module).__name__ == 'conv_bn_self':
+    #         conv_stats.append(module.conv_timer.get_stats())
+    #         bn_stats.append(module.bn_timer.get_stats())
+    #         activ_stats.append(module.activ_timer.get_stats())
 
-    conv_stats = np.array(conv_stats) 
-    ret_dict['total_conv_time'] = np.sum(conv_stats, axis=0)[1]
-    ret_dict['total_bn_time'] = np.sum(bn_stats, axis=0)[1]
-    ret_dict['total_activ_time'] = np.sum(activ_stats, axis=0)[1]
-    ret_dict['total_linear_time'] = np.sum(linear_stats, axis=0)[1]
-    # write_stats_file(conv_stats, 'conv')
-    # write_stats_file(bn_stats, 'bn')
-    # write_stats_file(activ_stats, 'activ')
-    x = trainset.data[0]
+    # conv_stats = np.array(conv_stats) 
+    # ret_dict['total_conv_time'] = np.sum(conv_stats, axis=0)[1]
+    # ret_dict['total_bn_time'] = np.sum(bn_stats, axis=0)[1]
+    # ret_dict['total_activ_time'] = np.sum(activ_stats, axis=0)[1]
+    # ret_dict['total_linear_time'] = np.sum(linear_stats, axis=0)[1]
+    to_tensor = transforms.ToTensor()
+    x = to_tensor(trainset.data[0]).unsqueeze(0).cuda().to(dtype=torch.half)
     with torch.autograd.profiler.profile(use_cuda=True) as profile:
         model(x)
-        logging.info(profile)
+    
+    print(profile.key_averages().table())
     file_name = "experiments.txt"
     write_to_file(ret_dict, file_name)
     write_to_file(config, file_name)
@@ -262,12 +261,14 @@ if __name__ == '__main__':
     config['batch_size'] = settings['batch_size']
     config['budget'] = settings['budget']
     config['model'] = settings['name']
-    config['weight_decay'] =  0#5e-4*config['batch_size']
-    config['momentum'] = 0#.9
-    config['milestones'] = [0, 4, config['budget']]
+    config['weight_decay'] =  0 #5e-4*config['batch_size']
+    config['momentum'] = 0 #.9
+    config['milestones'] =  [0, 5, config['budget']] #'optimiser=cosine'
     config['schedule'] = [0, 0.1, 0]
     config['batch_norm'] = BatchNorm
     config['seed'] = 42
     config['prefetch'] = False
     config['grad_clip'] = 5
+    config['conv_bn'] = conv_bn_pool_act
+    config['preprocess'] = True
     main(config)

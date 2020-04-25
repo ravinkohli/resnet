@@ -1,4 +1,5 @@
 import torch 
+import copy
 import numpy as np
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
@@ -23,10 +24,9 @@ def imshow(img):
 
 def preprocess(dataset, transforms):
     dataset = copy.copy(dataset)
-    for transform in reversed(transforms):
+    for transform in reversed(transforms): #reversed
         dataset.data = transform(dataset.data)
     return dataset
-
  
 class AccuracyMeter(object):
     
@@ -45,8 +45,8 @@ class AccuracyMeter(object):
         self.stats['loss'].append(stats['loss'])
         self.cnt += n
         self.time += time
-        logging.info(f"{self.name}_acc: {stats['acc']}, time for step{self.cnt}: {round(time, 2)}, total {self.name} time: {round(self.time, 2)}")
-        self.file.write(f"{self.name}_acc: {stats['acc']}, time for step{self.cnt}: {round(time, 2)}, total {self.name} time: {round(self.time, 2)}\n")
+        logging.info(f"{self.name}_acc: {round(stats['acc'], 2)}, time for step{self.cnt}: {round(time, 2)}, total {self.name} time: {round(self.time, 2)}")
+        self.file.write(f"{self.name}_acc: {round(stats['acc'], 2)}, time for step{self.cnt}: {round(time, 2)}, total {self.name} time: {round(self.time, 2)}\n")
     def get(self):
         return self.stats, self.cnt, self.time
     def plot(self, out_dir):
@@ -55,10 +55,11 @@ class AccuracyMeter(object):
             os.mkdir(out_dir)
         for key in self.stats.keys():
             plt.plot(self.stats[key])
-            plt.title(f'Model {self.name}_{key}')
-            plt.ylabel(f'Loss {self.name}_{key}')
+            plt.title(f'{self.name}_{key}')
+            plt.ylabel(f'{self.name}_{key}')
             plt.xlabel('Epoch')
             plt.xticks(np.arange(0, self.cnt, 5))
+            plt.grid(True)
             plt.savefig(f"{os.path.join(out_dir, f'{self.name}_{key}')}.png")
             plt.close()
         self.file.close()

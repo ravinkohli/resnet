@@ -187,28 +187,29 @@ def build_network(num_class=10):
 
 class conv_bn_self(nn.Module):
     def __init__(self, c_in, c_out, batch_norm, kernel_size=3, activation=True):
-        super(conv_bn_self, self).__init__()
-        
+        super(conv_bn_self, self).__init__()  
         self.conv = nn.Conv2d(c_in, c_out, kernel_size=kernel_size, stride=1, padding=1, bias=False)
-        self.conv_timer = LayerTimer('conv_bn-conv')
         self.bn = batch_norm(c_out) #nn.BatchNorm2d(self.depth)
-        self.bn_timer = LayerTimer('conv_bn-bn')
         self.activation=activation
         if self.activation:
             self.relu = nn.ReLU()
-            self.activ_timer = LayerTimer('conv_bn-relu')
     def forward(self, x):
-        self.conv_timer.start_time()
         x = self.conv(x)
-        self.conv_timer.step()
-        self.bn_timer.start_time()
         x = self.bn(x)
-        self.bn_timer.step()
         if self.activation:
-            self.activ_timer.start_time()
             x = self.relu(x)
-            self.activ_timer.step()
         return x
+
+class conv_bn_act_pool(nn.Module):
+    def __init__(self, c_in, c_out, batch_norm, pool, kernel_size=3):
+        super(conv_bn_act_pool, self).__init__()
+        self.conv_bn = conv_bn_self(c_in, c_out, batch_norm, kernel_size, True)
+        self.pool = pool
+    
+    def forward(self, x):
+        x = self.conv_bn(x)
+        out = self.pool(x)
+        return out
 
 class Residual(nn.Module):
     def __init__(self, c, batch_norm, downsample=None):
@@ -230,28 +231,38 @@ class Residual(nn.Module):
 
         return out 
 
+class conv_bn_pool_act(nn.Module):
+    def __init__(self, c_in, c_out, batch_norm, pool, kernel_size=3):
+        super(conv_bn_pool_act, self).__init__()
+        self.conv_bn = conv_bn_self(c_in, c_out, batch_norm, kernel_size, False)
+        self.pool = pool
+        self.relu = nn.ReLU()
+    
+    def forward(self, x):
+        x = self.conv_bn(x)
+        x = self.pool(x)
+        out = self.relu(x)
+        return out
+
+
 class Network(nn.Module):
-    def __init__(self, batch_norm, weight=0.125, pool=nn.MaxPool2d(2)):
+    def __init__(self, batch_norm, weight=0.125, pool=nn.MaxPool2d(2), prep_block=conv_bn_self, conv_bn=conv_bn_act_pool):
         super(Network, self).__init__()
         channels = {'prep': 64, 'layer1': 128, 'layer2': 256, 'layer3': 512}
         self.prep = conv_bn_self(3, channels['prep'], batch_norm=batch_norm)
         self.layer1 = nn.Sequential(OrderedDict([
-            ('conv_bn', conv_bn_self(channels['prep'], channels['layer1'], batch_norm=batch_norm)),
-            ('pool', pool),
+            ('conv_bn', conv_bn(channels['prep'], channels['layer1'], pool=pool, batch_norm=batch_norm)),
             ('residual', Residual(channels['layer1'], batch_norm=batch_norm))
         ]))
         self.layer2 = nn.Sequential(OrderedDict([
-            ('conv_bn', conv_bn_self(channels['layer1'], channels['layer2'], batch_norm=batch_norm)),
-            ('pool', pool)
+            ('conv_bn', conv_bn(channels['layer1'], channels['layer2'], pool=pool, batch_norm=batch_norm)),
         ]))
         self.layer3 = nn.Sequential(OrderedDict([
-            ('conv_bn', conv_bn_self(channels['layer2'], channels['layer3'], batch_norm=batch_norm)),
-            ('pool', pool),
+            ('conv_bn', conv_bn(channels['layer2'], channels['layer3'], pool=pool, batch_norm=batch_norm)),
             ('residual', Residual(channels['layer3'], batch_norm=batch_norm))
         ]))
         self.pool = nn.MaxPool2d(4)
         self.flatten = Flatten()
-        self.linear_timer = LayerTimer('linear')
         self.linear =  nn.Linear(channels['layer3'], 10, bias=False)
         self.mul = Mul(weight)
 
@@ -265,9 +276,7 @@ class Network(nn.Module):
         x = self.pool(x)
 
         x = self.flatten(x)
-        self.linear_timer.start_time()
         x = self.linear(x)
-        self.linear_timer.step()
         x = self.mul(x)
 
         return x

@@ -58,13 +58,10 @@ def train_self(trainloader, model, criterion, optimizer, clip):
     model.train()
     for step, (inputs, target) in enumerate(trainloader, 0):
         # zero the parameter gradients
-        # print(inputs.shape)
         optimizer.zero_grad()
-        # torchvision.utils.save_image(inputs, f'inputs_{step}.png')
-        # sys.exit()
-        inputs = inputs.cuda()
+
+        inputs = inputs.cuda().to(dtype=torch.half)
         target = target.cuda(non_blocking=True)
-        # inputs.to(dtype=torch.half)
         logits = model(inputs)
 
         loss = criterion(logits, target)
@@ -92,17 +89,17 @@ def train_skeleton(trainloader, model, optimizer, clip):
 
         # zero the parameter gradients
         optimizer.zero_grad()
-        input = input.cuda().to(dtype=torch.half)
+        inputs = inputs.cuda().to(dtype=torch.half)
         target = target.cuda(non_blocking=True)
         # input.to(dtype=torch.half)
-        logits, loss = model(input, target)
+        logits, loss = model(inputs, target)
 
         loss.sum().backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), clip)
         optimizer.step()
 
         prec1, prec5 = accuracy(logits, target, topk=(1, 5))
-        n = input.size(0)
+        n = inputs.size(0)
         objs.update(loss.data.item(), n)
         top1.update(prec1.data.item(), n)
         top5.update(prec5.data.item(), n)
@@ -156,16 +153,16 @@ def infer_self(valid_queue, model, criterion):
     model.eval()
 
     with torch.no_grad():    
-        for step, (input, target) in enumerate(valid_queue):
-            input = input.cuda()
+        for step, (inputs, target) in enumerate(valid_queue):
+            inputs = inputs.cuda().to(dtype=torch.half)
             target = target.cuda(non_blocking=True)
             # # if name == 'skeleton':
-            # input.to(dtype=torch.half)
-            logits = model(input)
+            # inputs.to(dtype=torch.half)
+            logits = model(inputs)
             loss = criterion(logits, target)
 
             prec1, prec5 = accuracy(logits, target, topk=(1, 5))
-            n = input.size(0)
+            n = inputs.size(0)
             objs.update(loss.data.item(), n)
             top1.update(prec1.data.item(), n)
             top5.update(prec5.data.item(), n)
@@ -183,14 +180,14 @@ def infer_skeleton(valid_queue, model):
     model.eval()
 
     with torch.no_grad():    
-        for step, (input, target) in enumerate(valid_queue):
-            input = input.cuda().to(dtype=torch.half)
+        for step, (inputs, target) in enumerate(valid_queue):
+            inputs = inputs.cuda().to(dtype=torch.half)
             target = target.cuda(non_blocking=True)
 
-            logits, loss = model(input, target)
+            logits, loss = model(inputs, target)
 
             prec1, prec5 = accuracy(logits, target, topk=(1, 5))
-            n = input.size(0)
+            n = inputs.size(0)
             objs.update(loss.data.item(), n)
             top1.update(prec1.data.item(), n)
             top5.update(prec5.data.item(), n)

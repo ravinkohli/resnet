@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 from torch import nn
-
+import torch.nn.functional as F
 class BatchNorm(nn.BatchNorm2d):
     def __init__(self, num_features, eps=1e-05, momentum=0.1, weight_freeze=False, bias_freeze=False, weight_init=1.0, bias_init=0.0):
         super().__init__(num_features, eps=eps, momentum=momentum)
@@ -80,3 +80,17 @@ class DataPrefetchLoader():
     
     def __len__(self): 
         return len(self.dataloader)
+
+class LabelSmoothLoss(nn.Module):
+    
+    def __init__(self, smoothing=0.0):
+        super(LabelSmoothLoss, self).__init__()
+        self.smoothing = smoothing
+    
+    def forward(self, input, target):
+        log_prob = F.log_softmax(input, dim=-1)
+        weight = input.new_ones(input.size()) * \
+            self.smoothing / (input.size(-1) - 1.)
+        weight.scatter_(-1, target.unsqueeze(-1), (1. - self.smoothing))
+        loss = (-weight * log_prob).sum(dim=-1).mean()
+        return loss

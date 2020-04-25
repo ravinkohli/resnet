@@ -2,6 +2,7 @@
 from kakao dawnbench submission, https://github.com/wbaek/torchskeleton/releases/tag/v0.2.1_dawnbench_cifar10_release and dacid c pahe
 """
 import torch
+from torch import nn
 import numpy as np
 import torchvision
 
@@ -12,19 +13,9 @@ class Cutout:
 
     def __call__(self, image):
         h, w = image.size(1), image.size(2)
-        # mask = np.ones((h, w), np.float32)
         y = np.random.choice(range(h))
         x = np.random.choice(range(w))
         image[..., y:y+self.height, x:x+self.width] = 0.0
-        # y1 = np.clip(y - self.height // 2, 0, h)
-        # y2 = np.clip(y + self.height // 2, 0, h)
-        # x1 = np.clip(x - self.width // 2, 0, w)
-        # x2 = np.clip(x + self.width // 2, 0, w)
-
-        # mask[y1: y2, x1: x2] = 0.
-        # mask = torch.from_numpy(mask).to(device=image.device, dtype=image.dtype)
-        # mask = mask.expand_as(image)
-        # image *= mask
         return image
 
     def __repr__(self):
@@ -53,17 +44,46 @@ class Transpose:
         self.source = source
         self.target = target
     
-    def __call__(self, tensor):
-        return tensor.permute([self.source.index(d) for d in self.target]) 
+    def __call__(self, x):
+        return x.permute([self.source.index(d) for d in self.target]) 
+        # return x.transpose([self.source.index(d) for d in self.target]) 
+
+# class Transpose:
+#     def __init__(self, source, target):
+#         self.source = source
+#         self.target = target
+    
+#     def __call__(self, x):
+
+# # 
+
+# class Pad:
+#     def __init__(self, border):
+#         self.border = border
+    
+#     def __call__(self, tensor):
 
 class Pad:
-    def __init__(self, padding):
-        self.padding = padding
+    def __init__(self, border):
+        self.border = border
     
-    def __call__(self, tensor):
-        return torchvision.transforms.functional.pad(tensor, self.padding, padding_mode='reflect')
+    def __call__(self, x):
+        # return np.pad(x, [(0, 0), (self.border, self.border), (self.border, self.border), (0, 0)], mode='reflect')
+        return nn.ReflectionPad2d(self.border)(x)
 
 
+class Normalise:
+    def __init__(self, mean, std):
+        self.mean, self.std = [torch.tensor(x, dtype=torch.float16).cuda() for x in (mean, std)]
+    def __call__(self, x):
+        return (x - self.mean)/self.std
+
+class To:
+    def __init__(self, arg):
+        self.arg = arg
+    
+    def __call__(self, x):
+        return torch.tensor(x, dtype=self.arg)
 
 class Transform():
     def __init__(self, dataset, transforms):
