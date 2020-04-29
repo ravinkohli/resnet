@@ -5,12 +5,13 @@ import torchvision
 logging.basicConfig(level=logging.INFO)
 import torch
 from utils import AverageMeter, accuracy, plot_classes_preds
+from dataset import DataPrefetchLoader
 torch.set_default_tensor_type('torch.cuda.FloatTensor')
-torch.autograd.set_detect_anomaly(True)
 # import sys
 
 def train(trainloader, model, criterion, optimizer, name, clip, prefetch=True):
     if prefetch:
+        trainloader = DataPrefetchLoader(trainloader)
         top1_avg, objs_avg, a = train_prefetch(trainloader, model, criterion, optimizer, clip)
     elif name == 'skeleton':
         top1_avg, objs_avg, a = train_skeleton(trainloader, model, optimizer, clip)
@@ -20,13 +21,13 @@ def train(trainloader, model, criterion, optimizer, name, clip, prefetch=True):
     return top1_avg, objs_avg, a
 
 def train_prefetch(trainloader, model, criterion, optimizer, clip):
-    logging.info("in prefetch")
     c = datetime.datetime.now()
     objs = AverageMeter()
     top1 = AverageMeter()
     top5 = AverageMeter()
     model.train()
     inputs, targets = trainloader.next()
+    print(f'shape:{inputs.shape}')
     step = 0
     while inputs is not None:
         optimizer.zero_grad()
@@ -111,6 +112,7 @@ def train_skeleton(trainloader, model, optimizer, clip):
 
 def infer(valid_queue, model, criterion, name, prefetch=True):
     if prefetch:
+        valid_queue = DataPrefetchLoader(valid_queue)
         top1_avg, objs_avg, a = infer_prefetch(valid_queue, model, criterion)
     elif name == 'skeleton':
         top1_avg, objs_avg, a = infer_skeleton(valid_queue, model)
@@ -120,7 +122,6 @@ def infer(valid_queue, model, criterion, name, prefetch=True):
     return top1_avg, objs_avg, a
 
 def infer_prefetch(valid_queue, model, criterion):
-    logging.info('prefetch')
     c = datetime.datetime.now()
     objs = AverageMeter()
     top1 = AverageMeter()

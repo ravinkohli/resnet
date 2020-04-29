@@ -1,9 +1,9 @@
-from model import ResNet, build_network, ResidualBlock, Network, conv_bn_act_pool, conv_bn_pool_act
+from model import ResNet, build_network, ResidualBlock, Network, conv_bn_act_pool, conv_bn_pool_act,  conv_pool_bn_act
 from train import train, infer
 from utils import AccuracyMeter, write_to_file, count_parameters_in_MB, weights_init_uniform, preprocess
 from pieacewise_linear_lr_schedule import PiecewiseLinearLR #get_change_scale, get_piecewise
 import transform
-from torch_backend import BatchNorm, DataPrefetchLoader
+from torch_backend import BatchNorm, CELU, GhostBatchNorm
 from dataset import DataLoader
 from settings import get_dict
 from torch import nn
@@ -12,14 +12,11 @@ import torchvision
 import torchvision.transforms as transforms
 import torch.backends.cudnn as cudnn
 import torch.optim as optim
-# from torch.utils.tensorboard import SummaryWriter
-# from torch.utils.data.sampler import SubsetRandomSampler
 torch.set_default_tensor_type('torch.cuda.FloatTensor')
-# torch.autograd.set_detect_anomaly(True)
 import matplotlib.pyplot as plt
 import matplotlib
 import numpy as np
-import wandb
+# import wandb
 
 import pickle
 import datetime
@@ -29,6 +26,7 @@ logging.basicConfig(level=logging.INFO)
 import skeleton
 import glob
 import sys
+from functools import partial
 
 def model_train(model, config, criterion, trainloader, testloader, validloader, model_name):
     num_epochs = config['budget']
@@ -159,9 +157,7 @@ def main(config):
         transform.To(torch.float16),
     ]
 
-    ## probably wont need to put input to half
     train_transforms = [
-        # transforms.ToTensor(),
         transform.TensorRandomCrop(32, 32),
         transform.TensorRandomHorizontalFlip(),
         transform.Cutout(8, 8)
@@ -175,7 +171,7 @@ def main(config):
 
 
     batch_size = config['batch_size']
-
+    logging.info(f'Batch Size: {batch_size}')
     trainset = torchvision.datasets.CIFAR10(root='./data', train=True,
                                             download=False)
     testset = torchvision.datasets.CIFAR10(root='./data', train=False,
@@ -192,9 +188,6 @@ def main(config):
                             batch_size=batch_size,
                             shuffle=False)
 
-    if config['prefetch']:
-        trainloader = DataPrefetchLoader(trainloader)
-        testloader = DataPrefetchLoader(testloader)
 
     classes = ('plane', 'car', 'bird', 'cat',
             'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
@@ -213,7 +206,7 @@ def main(config):
         model = ResNet(ResidualBlock, [1, 1, 1], initial_depth=64, batch_norm=config['batch_norm'])
         model.cuda().half()
     elif model_name == 'self-david':
-        model = Network(batch_norm=config['batch_norm'], conv_bn=config['conv_bn'])
+        model = Network(batch_norm=config['batch_norm'], conv_bn=config['conv_bn'], activation=config['activation'])
         model.cuda().half()
     else:
         logging.error('incorrect model')
@@ -226,29 +219,13 @@ def main(config):
     # wandb.watch(model, log="all", log_freq=1)
     # model.apply(weights_init_uniform)
     ret_dict = model_train(model, config, criterion, trainloader, testloader, testloader, model_name)
-    # conv_stats = list()
-    # bn_stats = list()
-    # activ_stats = list()
-    # linear_stats = list()
-    # for module in model.modules():
-    #     if type(module).__name__ == 'Network':
-    #         linear_stats.append(module.linear_timer.get_stats())
-    #     elif type(module).__name__ == 'conv_bn_self':
-    #         conv_stats.append(module.conv_timer.get_stats())
-    #         bn_stats.append(module.bn_timer.get_stats())
-    #         activ_stats.append(module.activ_timer.get_stats())
 
-    # conv_stats = np.array(conv_stats) 
-    # ret_dict['total_conv_time'] = np.sum(conv_stats, axis=0)[1]
-    # ret_dict['total_bn_time'] = np.sum(bn_stats, axis=0)[1]
-    # ret_dict['total_activ_time'] = np.sum(activ_stats, axis=0)[1]
-    # ret_dict['total_linear_time'] = np.sum(linear_stats, axis=0)[1]
     to_tensor = transforms.ToTensor()
     x = to_tensor(trainset.data[0]).unsqueeze(0).cuda().to(dtype=torch.half)
     with torch.autograd.profiler.profile(use_cuda=True) as profile:
         model(x)
     
-    print(profile.key_averages().table())
+    logging.info(profile.key_averages().table())
     file_name = "experiments.txt"
     write_to_file(ret_dict, file_name)
     write_to_file(config, file_name)
@@ -257,18 +234,19 @@ def main(config):
 
 if __name__ == '__main__':
     settings = get_dict()
+    
     config = dict()
     config['batch_size'] = settings['batch_size']
     config['budget'] = settings['budget']
     config['model'] = settings['name']
-    config['weight_decay'] =  0 #5e-4*config['batch_size']
-    config['momentum'] = 0 #.9
+    config['weight_decay'] =  0# 5e-4*config['batch_size']
+    config['momentum'] = 0#.9
     config['milestones'] =  [0, 5, config['budget']] #'optimiser=cosine'
     config['schedule'] = [0, 0.1, 0]
-    config['batch_norm'] = BatchNorm
+    config['batch_norm'] = partial(GhostBatchNorm, num_splits=16)
+    config['activation'] = nn.ReLU  #partial(CELU, alpha=0.075) 
     config['seed'] = 42
-    config['prefetch'] = False
+    config['prefetch'] = True
     config['grad_clip'] = 5
-    config['conv_bn'] = conv_bn_pool_act
-    config['preprocess'] = True
+    config['conv_bn'] = conv_pool_bn_act
     main(config)

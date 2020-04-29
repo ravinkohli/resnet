@@ -23,3 +23,35 @@ class DataLoader():
 
     def __len__(self):
         return len(self.splits) - 1
+
+
+'''
+Code for prefetching used from 
+https://gist.githubusercontent.com/xhchrn/45585e33c4f1f18864309221eda2f046/raw/0a1feca64ffef2e9390be1b750583208a01d4172/data_prefetcher.py
+'''
+
+class DataPrefetchLoader():
+    def __init__(self, loader):
+        self.loader = iter(loader)
+        self.stream = torch.cuda.Stream()
+        self.preload()
+
+    def preload(self):
+        try:
+            self.next_data_1, self.next_data_2 = next(self.loader)
+        except StopIteration:
+            self.next_data_1 = None
+            self.next_data_2 = None
+            return
+        with torch.cuda.stream(self.stream):
+            self.next_data_1 = self.next_data_1.cuda(non_blocking=True)
+            self.next_data_2 = self.next_data_2.cuda(non_blocking=True)
+            
+    def next(self):
+        torch.cuda.current_stream().wait_stream(self.stream)
+        data_1, data_2 = self.next_data_1, self.next_data_2
+        self.preload()
+        return data_1, data_2
+    
+    def __len__(self): 
+        return len(self.dataloader)

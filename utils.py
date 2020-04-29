@@ -197,25 +197,44 @@ def weights_init_uniform(m):
             # m.bias.data.fill_(0)
 
 
-class LayerTimer:
-    def __init__(self, name):
-        self.name = name
-        self.total_time = 0
-        self.timer = None
-        self.times = list()
+# class LayerTimer:
+#     def __init__(self, name):
+#         self.name = name
+#         self.total_time = 0
+#         self.timer = None
+#         self.times = list()
     
-    def start_time(self):
-        self.timer = datetime.datetime.now()
+#     def start_time(self):
+#         self.timer = datetime.datetime.now()
 
-    def step(self):
-        time = -(self.timer - datetime.datetime.now()).total_seconds()
-        self.times.append(time)
-        self.timer = None
+#     def step(self):
+#         time = -(self.timer - datetime.datetime.now()).total_seconds()
+#         self.times.append(time)
+#         self.timer = None
     
-    def get_last_time(self):
-        return self.times[-1]
+#     def get_last_time(self):
+#         return self.times[-1]
     
-    def get_stats(self):
-        # with(f"{name}_stats.txt", 'w') as f:
-        #     f.write('Mean:' + str(np.mean(self.times)) + '\tTotal Time:'+ str(np.sum(self.times))) 
-        return np.mean(self.times), np.sum(self.times)
+#     def get_stats(self):
+#         # with(f"{name}_stats.txt", 'w') as f:
+#         #     f.write('Mean:' + str(np.mean(self.times)) + '\tTotal Time:'+ str(np.sum(self.times))) 
+#         return np.mean(self.times), np.sum(self.times)
+
+
+    # conv_stats = list()
+    # bn_stats = list()
+    # activ_stats = list()
+    # linear_stats = list()
+    # for module in model.modules():
+    #     if type(module).__name__ == 'Network':
+    #         linear_stats.append(module.linear_timer.get_stats())
+    #     elif type(module).__name__ == 'conv_bn_self':
+    #         conv_stats.append(module.conv_timer.get_stats())
+    #         bn_stats.append(module.bn_timer.get_stats())
+    #         activ_stats.append(module.activ_timer.get_stats())
+
+    # conv_stats = np.array(conv_stats) 
+    # ret_dict['total_conv_time'] = np.sum(conv_stats, axis=0)[1]
+    # ret_dict['total_bn_time'] = np.sum(bn_stats, axis=0)[1]
+    # ret_dict['total_activ_time'] = np.sum(activ_stats, axis=0)[1]
+    # ret_dict['total_linear_time'] = np.sum(linear_stats, axis=0)[1]
