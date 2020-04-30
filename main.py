@@ -233,8 +233,7 @@ def main(config):
 
 
 if __name__ == '__main__':
-    settings = get_dict()
-    
+    settings = get_dict()   
     config = dict()
     config['batch_size'] = settings['batch_size']
     config['budget'] = settings['budget']
