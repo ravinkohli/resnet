@@ -3,7 +3,7 @@ for storing arguments
 '''
 
 main_args=dict()
-main_args['batch_size'] = 256
+main_args['batch_size'] = 512
 main_args['budget'] = 30
 main_args['split'] = 1
 main_args['name'] = 'self-david' #'skeleton'#'self-vanilla'

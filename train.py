@@ -27,7 +27,7 @@ def train_prefetch(trainloader, model, criterion, optimizer, clip):
     top5 = AverageMeter()
     model.train()
     inputs, targets = trainloader.next()
-    print(f'shape:{inputs.shape}')
+    # print(f'shape:{inputs.shape}')
     step = 0
     while inputs is not None:
         optimizer.zero_grad()

@@ -1,9 +1,10 @@
 from model import ResNet, build_network, ResidualBlock, Network, conv_bn_act_pool, conv_bn_pool_act,  conv_pool_bn_act
 from train import train, infer
 from utils import AccuracyMeter, write_to_file, count_parameters_in_MB, weights_init_uniform, preprocess
-from pieacewise_linear_lr_schedule import PiecewiseLinearLR #get_change_scale, get_piecewise
+from lr_schedulers import PiecewiseLinearLR, SWAResNetLR #get_change_scale, get_piecewise
 import transform
-from torch_backend import BatchNorm, CELU, GhostBatchNorm
+from torch_backend import BatchNorm, GhostBatchNorm 
+from criterion import LabelSmoothLoss, NMTCritierion
 from dataset import DataLoader
 from settings import get_dict
 from torch import nn
@@ -12,11 +13,12 @@ import torchvision
 import torchvision.transforms as transforms
 import torch.backends.cudnn as cudnn
 import torch.optim as optim
+import torchcontrib
 torch.set_default_tensor_type('torch.cuda.FloatTensor')
 import matplotlib.pyplot as plt
 import matplotlib
 import numpy as np
-# import wandb
+import wandb
 
 import pickle
 import datetime
@@ -42,8 +44,16 @@ def model_train(model, config, criterion, trainloader, testloader, validloader, 
     logging.info(f"weight decay:\t{config['weight_decay']}")
     logging.info(f"momentum :\t{config['momentum']}")
 
-    optimizer = optim.SGD(model.parameters(), lr=0.001, weight_decay=config['weight_decay'], momentum=config['momentum'])
-    lr_scheduler = PiecewiseLinearLR(optimizer, milestones=config['milestones'], schedule=config['schedule']) #torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, num_epochs) #
+    base_optimizer = optim.SGD(model.parameters(), lr=config['base_lr'], weight_decay=config['weight_decay'], momentum=config['momentum'])
+    if config['swa']:
+        optimizer = torchcontrib.optim.SWA(base_optimizer)
+        
+        # lr_scheduler = SWAResNetLR(optimizer, milestones=config['milestones'], schedule=config['schedule'], swa_start=config['swa_start'], swa_init_lr=config['swa_init_lr'], swa_step=config['swa_step'], base_lr=config['base_lr'])
+    else:
+        optimizer = base_optimizer
+        # lr_scheduler = PiecewiseLinearLR(optimizer, milestones=config['milestones'], schedule=config['schedule'])
+
+    lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, num_epochs)
     save_model_str = './models/'
     
     if not os.path.exists(save_model_str):
@@ -65,12 +75,14 @@ def model_train(model, config, criterion, trainloader, testloader, validloader, 
         lr = lr_scheduler.get_lr()[0]
         lrs.append(lr)
 
-        logging.info('epoch %d lr %e', epoch, lr)
+        logging.info('epoch %d, lr %e', epoch, lr)
         
         train_acc, train_obj, time = train(trainloader, model, criterion, optimizer, model_name, config['grad_clip'], config['prefetch'])
         
         train_meter.update({'acc': train_acc, 'loss': train_obj}, time.total_seconds())
         lr_scheduler.step()
+        if config['swa'] and ((epoch+1) >= config['swa_start']) and ((epoch+1 - config['swa_start']) % config['swa_step'] == 0):
+            optimizer.update_swa()
         valid_acc, valid_obj, time = infer(testloader, model, criterion, name=model_name,  prefetch=config['prefetch'])
         valid_meter.update({'acc': valid_acc, 'loss': valid_obj}, time.total_seconds())
         if valid_acc >=94:
@@ -80,6 +92,9 @@ def model_train(model, config, criterion, trainloader, testloader, validloader, 
         # wandb.log({"Test Accuracy":valid_acc, "Test Loss": valid_obj, "Train Accuracy":train_acc, "Train Loss": train_obj})  
 
     a = datetime.datetime.now() - c
+    if config['swa']:
+        optimizer.swap_swa_sgd()
+        optimizer.bn_update(trainloader, model)
     test_acc, test_obj, time = infer(testloader, model, criterion, name=model_name, prefetch=config['prefetch'])
     test_meter.update({'acc': test_acc, 'loss': test_obj}, time.total_seconds())
     torch.save(model.state_dict(), f'{save_model_str}/state')
@@ -192,7 +207,7 @@ def main(config):
     classes = ('plane', 'car', 'bird', 'cat',
             'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
 
-    criterion = nn.CrossEntropyLoss(reduction='sum')
+    criterion = config['criterion']
     criterion.cuda()
     model_name = config['model']
     # steps_per_epoch = int(steps_per_epoch * 1.0)
@@ -216,21 +231,20 @@ def main(config):
     
     # wandb.init(entity='wandb', project='resnet-dawnbench')
     # wandb.watch_called = False
-    # wandb.watch(model, log="all", log_freq=1)
+    # wandb.watch(model, log="all", log_freq=3)
     # model.apply(weights_init_uniform)
     ret_dict = model_train(model, config, criterion, trainloader, testloader, testloader, model_name)
 
-    to_tensor = transforms.ToTensor()
-    x = to_tensor(trainset.data[0]).unsqueeze(0).cuda().to(dtype=torch.half)
-    with torch.autograd.profiler.profile(use_cuda=True) as profile:
-        model(x)
+    # to_tensor = transforms.ToTensor()
+    # x = to_tensor(trainset.data[0]).unsqueeze(0).cuda().to(dtype=torch.half)
+    # with torch.autograd.profiler.profile(use_cuda=True) as profile:
+    #     model(x)
     
-    logging.info(profile.key_averages().table())
+    # logging.info(profile.key_averages().table())
     file_name = "experiments.txt"
     write_to_file(ret_dict, file_name)
     write_to_file(config, file_name)
     return ret_dict
-
 
 if __name__ == '__main__':
     settings = get_dict()   
@@ -238,14 +252,20 @@ if __name__ == '__main__':
     config['batch_size'] = settings['batch_size']
     config['budget'] = settings['budget']
     config['model'] = settings['name']
-    config['weight_decay'] =  0# 5e-4*config['batch_size']
-    config['momentum'] = 0#.9
-    config['milestones'] =  [0, 5, config['budget']] #'optimiser=cosine'
-    config['schedule'] = [0, 0.1, 0]
+    config['swa'] = True
+    config['swa_start'] = 25
+    config['swa_step'] = 1
+    config['weight_decay'] = 5e-5*config['batch_size'] #0# 
+    config['momentum'] = 0.8
+    config['swa_init_lr'] = 0.1
+    config['base_lr'] = 0.05
+    config['milestones'] = "COSINE" #[0, int(config['swa_start']/2), config['swa_start'], 30] #[0, 5, config['budget']]  #[0, int(config['swa_start']/2), config['swa_start'], 30][0, 5, config['budget']] #'cosine'
+    config['schedule'] = "COSINE" #[0, 0.2, config['swa_init_lr'], config['swa_init_lr']] #[0, 1, 0] #[0, 0.2, config['swa_init_lr'], config['swa_init_lr']] #[0, 0.1, 0]
     config['batch_norm'] = partial(GhostBatchNorm, num_splits=16)
-    config['activation'] = nn.ReLU  #partial(CELU, alpha=0.075) 
+    config['activation'] = nn.ReLU  #partial(nn.CELU, alpha=0.075, inplace=False) # nn.ReLU  
     config['seed'] = 42
     config['prefetch'] = True
     config['grad_clip'] = 5
     config['conv_bn'] = conv_pool_bn_act
+    config['criterion'] = nn.CrossEntropyLoss(reduction='sum') #NMTCritierion(label_smoothing=0.2)#nn.CrossEntropyLoss(reduction='sum') #LabelSmoothLoss(smoothing=0.2)
     main(config)

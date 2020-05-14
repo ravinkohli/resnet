@@ -238,3 +238,65 @@ def weights_init_uniform(m):
     # ret_dict['total_bn_time'] = np.sum(bn_stats, axis=0)[1]
     # ret_dict['total_activ_time'] = np.sum(activ_stats, axis=0)[1]
     # ret_dict['total_linear_time'] = np.sum(linear_stats, axis=0)[1]
+
+
+class Vocab(object):
+
+    PAD = 0
+    EOS = 1
+    UNK = 3
+    BOS = 2
+
+    def __init__(self, dict_path, max_n_words=-1):
+
+        with open(dict_path) as f:
+            _dict = json.load(f)
+
+        # Word to word index and word frequence.
+        self._token2id_feq = self._init_dict()
+
+        N = len(self._token2id_feq)
+
+        for ww, vv in _dict.items():
+            if isinstance(vv, int):
+                self._token2id_feq[ww] = (vv + N, 0)
+            else:
+                self._token2id_feq[ww] = (vv[0] + N, vv[1])
+
+        self._id2token = dict([(ii[0], ww) for ww, ii in self._token2id_feq.items()])
+
+        self._max_n_words = max_n_words
+
+    @property
+    def max_n_words(self):
+
+        if self._max_n_words == -1:
+            return len(self._token2id_feq)
+        else:
+            return self._max_n_words
+
+    def _init_dict(self):
+
+        return {
+            "<PAD>": (Vocab.PAD, 0),
+            "<UNK>": (Vocab.UNK, 0),
+            "<EOS>": (Vocab.EOS, 0),
+            "<BOS>": (Vocab.BOS, 0)
+                }
+
+    def token2id(self, word):
+
+        if word in self._token2id_feq and self._token2id_feq[word][0] < self.max_n_words:
+
+            return self._token2id_feq[word][0]
+        else:
+            return Vocab.UNK
+
+    def id2token(self, id):
+
+        return self._id2token[id]
+
+    @staticmethod
+    def special_ids():
+
+        return [0, 1, 2]
