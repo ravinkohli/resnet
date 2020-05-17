@@ -4,10 +4,11 @@ from utils import AccuracyMeter, write_to_file, count_parameters_in_MB, weights_
 from lr_schedulers import PiecewiseLinearLR, SWAResNetLR #get_change_scale, get_piecewise
 import transform
 from torch_backend import BatchNorm, GhostBatchNorm 
-from criterion import LabelSmoothLoss, NMTCritierion
+from criterion import LabelSmoothLoss, NMTCriterion
 from dataset import DataLoader
 from settings import get_dict
 from torch import nn
+
 import torch
 import torchvision
 import torchvision.transforms as transforms
@@ -15,6 +16,7 @@ import torch.backends.cudnn as cudnn
 import torch.optim as optim
 import torchcontrib
 torch.set_default_tensor_type('torch.cuda.FloatTensor')
+
 import matplotlib.pyplot as plt
 import matplotlib
 import numpy as np
@@ -25,6 +27,7 @@ import datetime
 import os
 import logging
 logging.basicConfig(level=logging.INFO)
+
 import skeleton
 import glob
 import sys
@@ -54,6 +57,7 @@ def model_train(model, config, criterion, trainloader, testloader, validloader, 
         # lr_scheduler = PiecewiseLinearLR(optimizer, milestones=config['milestones'], schedule=config['schedule'])
 
     lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, num_epochs)
+    #lr_scheduler = PiecewiseLinearLR(optimizer, milestones=config['milestones'], schedule=config['schedule'])
     save_model_str = './models/'
     
     if not os.path.exists(save_model_str):
@@ -252,20 +256,20 @@ if __name__ == '__main__':
     config['batch_size'] = settings['batch_size']
     config['budget'] = settings['budget']
     config['model'] = settings['name']
-    config['swa'] = True
+    config['swa'] = False
     config['swa_start'] = 25
     config['swa_step'] = 1
     config['weight_decay'] = 5e-5*config['batch_size'] #0# 
-    config['momentum'] = 0.8
+    config['momentum'] = 0.65
     config['swa_init_lr'] = 0.1
     config['base_lr'] = 0.05
-    config['milestones'] = "COSINE" #[0, int(config['swa_start']/2), config['swa_start'], 30] #[0, 5, config['budget']]  #[0, int(config['swa_start']/2), config['swa_start'], 30][0, 5, config['budget']] #'cosine'
-    config['schedule'] = "COSINE" #[0, 0.2, config['swa_init_lr'], config['swa_init_lr']] #[0, 1, 0] #[0, 0.2, config['swa_init_lr'], config['swa_init_lr']] #[0, 0.1, 0]
+    config['milestones'] = 'COSINE' #[0, config['budget']/5, config['budget']] #[0, int(config['swa_start']/2), config['swa_start'], 30] #[0, config['budget']/5, config['budget']] #[0, 5, config['budget']] #"COSINE" #[0, int(config['swa_start']/2), config['swa_start'], 30] #[0, 5, config['budget']]  #[0, int(config['swa_start']/2), config['swa_start'], 30][0, 5, config['budget']] #'cosine'
+    config['schedule'] = 'COSINE' #[0, 0.1, 0] #[0, 0.2, config['swa_init_lr'], config['swa_init_lr']] #0, 0.2, 0] #[0, 0.1, 0] #"COSINE" #[0, 0.2, config['swa_init_lr'], config['swa_init_lr']] #[0, 1, 0] #[0, 0.2, config['swa_init_lr'], config['swa_init_lr']] #[0, 0.1, 0]
     config['batch_norm'] = partial(GhostBatchNorm, num_splits=16)
     config['activation'] = nn.ReLU  #partial(nn.CELU, alpha=0.075, inplace=False) # nn.ReLU  
     config['seed'] = 42
     config['prefetch'] = True
     config['grad_clip'] = 5
     config['conv_bn'] = conv_pool_bn_act
-    config['criterion'] = nn.CrossEntropyLoss(reduction='sum') #NMTCritierion(label_smoothing=0.2)#nn.CrossEntropyLoss(reduction='sum') #LabelSmoothLoss(smoothing=0.2)
+    config['criterion'] =  nn.CrossEntropyLoss(reduction='sum')  #NMTCritierion(label_smoothing=0.2)#nn.CrossEntropyLoss(reduction='sum') #LabelSmoothLoss(smoothing=0.2)
     main(config)
