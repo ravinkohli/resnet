@@ -5,7 +5,7 @@ import torch
 from torch import nn
 import numpy as np
 import torchvision
-
+from settings import get
 class Cutout:
     def __init__(self, height, width):
         self.height = height
@@ -74,7 +74,7 @@ class Pad:
 
 class Normalise:
     def __init__(self, mean, std):
-        self.mean, self.std = [torch.tensor(x, dtype=torch.float16).cuda() for x in (mean, std)]
+        self.mean, self.std = [torch.tensor(x, dtype=get('dtype')).cuda() for x in (mean, std)]
     def __call__(self, x):
         return (x - self.mean)/self.std
 

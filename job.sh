@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH -p meta_gpu-ti # partition (queue)
+#SBATCH -p meta_gpu-x # partition (queue)
 #SBATCH --mem 6000 # memory pool for all cores (4GB)
 #SBATCH -t 1-00:00 # time (D-HH:MM)
 #SBATCH -c 1 # number of cores

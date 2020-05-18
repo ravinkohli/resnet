@@ -118,12 +118,14 @@ def model_train(model, config, criterion, trainloader, testloader, validloader, 
     logging.info(f'test_acc: {test_acc}, save_model_str:{save_model_str}, total time :{total_time} and GPU used {torch.cuda.get_device_name(0)}')
     _, cnt, time  = train_meter.get()
     time_per_step = round(time/cnt, 2)
-    return_dict = {'test_acc': test_acc, 
+    return_dict = {
+                'test_acc': test_acc, 
                 'save_model_str':save_model_str, 
                 'training_time_per_step': time_per_step, 
                 'total_train_time': time, 
                 'total_time':total_time, 
-                'GPU' :torch.cuda.get_device_name(0)
+                'GPU' :torch.cuda.get_device_name(0),
+                'train_acc': train_acc
                 }
     if success:
         return_dict['time_to_94'] = time_to_94
@@ -165,7 +167,11 @@ def get_skeleton_model(criterion):
     return model
     
 def main(config):
-
+    if config['half']:
+        settings['dtype'] = torch.float16
+    else:
+        settings['dtype'] = torch.float32
+    
     CIFAR_MEAN = [0.49139968, 0.48215827, 0.44653124]
     CIFAR_STD = [0.24703233, 0.24348505, 0.26158768]
     torch.manual_seed(config['seed'])  
@@ -173,7 +179,7 @@ def main(config):
         transform.Pad(4),
         transform.Transpose(source='NHWC', target='NCHW'),
         transform.Normalise(CIFAR_MEAN, CIFAR_STD),
-        transform.To(torch.float16),
+        transform.To(settings['dtype']),
     ]
 
     train_transforms = [
@@ -185,7 +191,7 @@ def main(config):
     preprocess_test_transforms =[
         transform.Transpose(source='NHWC', target='NCHW'),
         transform.Normalise(CIFAR_MEAN, CIFAR_STD),  
-        transform.To(torch.float16),
+        transform.To(settings['dtype']),
         ]
 
 
@@ -226,7 +232,10 @@ def main(config):
         model.cuda().half()
     elif model_name == 'self-david':
         model = Network(batch_norm=config['batch_norm'], conv_bn=config['conv_bn'], activation=config['activation'])
-        model.cuda().half()
+        if config['half']:
+            model.cuda().half()
+        else:
+            model.cuda()
     else:
         logging.error('incorrect model')
         sys.exit()
@@ -256,20 +265,36 @@ if __name__ == '__main__':
     config['batch_size'] = settings['batch_size']
     config['budget'] = settings['budget']
     config['model'] = settings['name']
-    config['swa'] = False
+    config['swa'] = True
     config['swa_start'] = 25
     config['swa_step'] = 1
     config['weight_decay'] = 5e-5*config['batch_size'] #0# 
     config['momentum'] = 0.65
     config['swa_init_lr'] = 0.1
-    config['base_lr'] = 0.05
+    config['base_lr'] = 0.065
     config['milestones'] = 'COSINE' #[0, config['budget']/5, config['budget']] #[0, int(config['swa_start']/2), config['swa_start'], 30] #[0, config['budget']/5, config['budget']] #[0, 5, config['budget']] #"COSINE" #[0, int(config['swa_start']/2), config['swa_start'], 30] #[0, 5, config['budget']]  #[0, int(config['swa_start']/2), config['swa_start'], 30][0, 5, config['budget']] #'cosine'
     config['schedule'] = 'COSINE' #[0, 0.1, 0] #[0, 0.2, config['swa_init_lr'], config['swa_init_lr']] #0, 0.2, 0] #[0, 0.1, 0] #"COSINE" #[0, 0.2, config['swa_init_lr'], config['swa_init_lr']] #[0, 1, 0] #[0, 0.2, config['swa_init_lr'], config['swa_init_lr']] #[0, 0.1, 0]
-    config['batch_norm'] = partial(GhostBatchNorm, num_splits=16)
+    config['batch_norm'] =  BatchNorm #partial(GhostBatchNorm, num_splits=16)
     config['activation'] = nn.ReLU  #partial(nn.CELU, alpha=0.075, inplace=False) # nn.ReLU  
-    config['seed'] = 42
     config['prefetch'] = True
     config['grad_clip'] = 5
-    config['conv_bn'] = conv_pool_bn_act
+    config['half'] = True
+    config['conv_bn'] = conv_pool_bn_act #conv_bn_act_pool #conv_bn_pool_act #conv_pool_bn_act
     config['criterion'] =  nn.CrossEntropyLoss(reduction='sum')  #NMTCritierion(label_smoothing=0.2)#nn.CrossEntropyLoss(reduction='sum') #LabelSmoothLoss(smoothing=0.2)
-    main(config)
+    seeds = [1, 2, 42, 3]
+    test_accuracies = list()
+    train_accuracies = list()
+    for seed in seeds:
+        config['seed'] = seed
+        return_dict = main(config)
+        test_accuracies.append(return_dict['test_acc'])
+        train_accuracies.append(return_dict['train_acc'])
+
+    test_accuracies = np.array(test_accuracies)
+    logging.info('TEST ACCURACY')
+    logging.info('Mean of 4 runs', np.mean(test_accuracies)[0])
+    logging.info('Std of 4 runs', np.std(test_accuracies)[0])
+    train_accuracies = np.array(train_accuracies)
+    logging.info('TRAIN ACCURACY')
+    logging.info('Mean of 4 runs', np.mean(train_accuracies)[0])
+    logging.info('Std of 4 runs', np.std(train_accuracies)[0])
