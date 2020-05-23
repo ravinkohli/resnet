@@ -74,7 +74,10 @@ class Pad:
 
 class Normalise:
     def __init__(self, mean, std):
-        self.mean, self.std = [torch.tensor(x, dtype=get('dtype')).cuda() for x in (mean, std)]
+        if config['device'] == 'cpu':
+            self.mean, self.std = [torch.tensor(x, dtype=get('dtype')).cuda() for x in (mean, std)]
+        else:
+            self.mean, self.std = [torch.tensor(x, dtype=get('dtype')).cuda() for x in (mean, std)]
     def __call__(self, x):
         return (x - self.mean)/self.std
 

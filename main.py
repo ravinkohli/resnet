@@ -15,13 +15,13 @@ import torchvision.transforms as transforms
 import torch.backends.cudnn as cudnn
 import torch.optim as optim
 import torchcontrib
-torch.set_default_tensor_type('torch.cuda.FloatTensor')
+# torch.set_default_tensor_type('torch.cuda.FloatTensor')
 
 import matplotlib.pyplot as plt
 import matplotlib
 import numpy as np
 import wandb
-
+from statistics import mean, stdev
 import pickle
 import datetime
 import os
@@ -37,12 +37,15 @@ def model_train(model, config, criterion, trainloader, testloader, validloader, 
     num_epochs = config['budget']
     success = False
     time_to_94 = None
-    logging.info(f"{torch.cuda.is_available()}")
-    
-    cudnn.benchmark = True
-    cudnn.enabled=True
-    gpu = 'cuda:0'
-    torch.cuda.set_device(gpu)
+    cuda = torch.cuda.is_available()
+    if cuda:
+        cudnn.benchmark = True
+        cudnn.enabled=True
+        device = torch.device('cuda:0')
+        torch.cuda.set_device(gpu)
+    else: 
+        device = torch.device('cpu')
+        config['prefetch'] = False
     lrs = list()
     logging.info(f"weight decay:\t{config['weight_decay']}")
     logging.info(f"momentum :\t{config['momentum']}")
@@ -260,6 +263,7 @@ def main(config):
     return ret_dict
 
 if __name__ == '__main__':
+
     settings = get_dict()   
     config = dict()
     config['batch_size'] = settings['batch_size']
@@ -271,7 +275,7 @@ if __name__ == '__main__':
     config['weight_decay'] = 5e-5*config['batch_size'] #0# 
     config['momentum'] = 0.65
     config['swa_init_lr'] = 0.1
-    config['base_lr'] = 0.065
+    config['base_lr'] = 0.05
     config['milestones'] = 'COSINE' #[0, config['budget']/5, config['budget']] #[0, int(config['swa_start']/2), config['swa_start'], 30] #[0, config['budget']/5, config['budget']] #[0, 5, config['budget']] #"COSINE" #[0, int(config['swa_start']/2), config['swa_start'], 30] #[0, 5, config['budget']]  #[0, int(config['swa_start']/2), config['swa_start'], 30][0, 5, config['budget']] #'cosine'
     config['schedule'] = 'COSINE' #[0, 0.1, 0] #[0, 0.2, config['swa_init_lr'], config['swa_init_lr']] #0, 0.2, 0] #[0, 0.1, 0] #"COSINE" #[0, 0.2, config['swa_init_lr'], config['swa_init_lr']] #[0, 1, 0] #[0, 0.2, config['swa_init_lr'], config['swa_init_lr']] #[0, 0.1, 0]
     config['batch_norm'] =  BatchNorm #partial(GhostBatchNorm, num_splits=16)
@@ -281,20 +285,56 @@ if __name__ == '__main__':
     config['half'] = True
     config['conv_bn'] = conv_pool_bn_act #conv_bn_act_pool #conv_bn_pool_act #conv_pool_bn_act
     config['criterion'] =  nn.CrossEntropyLoss(reduction='sum')  #NMTCritierion(label_smoothing=0.2)#nn.CrossEntropyLoss(reduction='sum') #LabelSmoothLoss(smoothing=0.2)
-    seeds = [1, 2, 42, 3]
-    test_accuracies = list()
-    train_accuracies = list()
+    seeds = [1] #, 2, 42, 3]
+    
     for seed in seeds:
+        test_accuracies = list()
+        train_accuracies = list()
+        training_time_per_step = list()
         config['seed'] = seed
         return_dict = main(config)
         test_accuracies.append(return_dict['test_acc'])
         train_accuracies.append(return_dict['train_acc'])
+        training_time_per_step.append(return_dict['training_time_per_step'])
 
-    test_accuracies = np.array(test_accuracies)
-    logging.info('TEST ACCURACY')
-    logging.info('Mean of 4 runs', np.mean(test_accuracies)[0])
-    logging.info('Std of 4 runs', np.std(test_accuracies)[0])
-    train_accuracies = np.array(train_accuracies)
-    logging.info('TRAIN ACCURACY')
-    logging.info('Mean of 4 runs', np.mean(train_accuracies)[0])
-    logging.info('Std of 4 runs', np.std(train_accuracies)[0])
+    print('TEST ACCURACY')
+    print('Mean of 4 runs', mean(test_accuracies))
+    print('Std of 4 runs', stdev(test_accuracies))
+    print('TRAIN ACCURACY')
+    print('Mean of 4 runs', mean(train_accuracies))
+    print('Std of 4 runs', stdev(train_accuracies))
+    print('training_time_per_step')
+    print('Mean of 4 runs', mean(training_time_per_step))
+    print('Std of 4 runs', stdev(training_time_per_step))
+
+
+    # swa = [True, False]
+    # half = [True, False]
+    # prefetch = [True, False]
+    # batch_norm = [BatchNorm, partial(GhostBatchNorm, num_splits=16)]
+    # conv_bn = [conv_pool_bn_act, conv_bn_act_pool, conv_bn_pool_act]
+
+
+    # for item in swa:
+    #     test_accuracies = list()
+    #     train_accuracies = list()
+    #     training_time_per_step = list()
+    #     config['swa'] = item
+        
+    #     for seed in seeds:
+    #         config['seed'] = seed
+    #         return_dict = main(config)
+    #         test_accuracies.append(return_dict['test_acc'])
+    #         train_accuracies.append(return_dict['train_acc'])
+    #         training_time_per_step.append(return_dict['training_time_per_step'])
+
+    #     print(f'swa, {item}')
+    #     print('TEST ACCURACY')
+    #     print('Mean of 4 runs', mean(test_accuracies))
+    #     print('Std of 4 runs', stdev(test_accuracies))
+    #     print('TRAIN ACCURACY')
+    #     print('Mean of 4 runs', mean(train_accuracies))
+    #     print('Std of 4 runs', stdev(train_accuracies))
+    #     print('training_time_per_step')
+    #     print('Mean of 4 runs', mean(training_time_per_step))
+    #     print('Std of 4 runs', stdev(training_time_per_step))
