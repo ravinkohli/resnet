@@ -6,7 +6,9 @@ logging.basicConfig(level=logging.INFO)
 import torch
 from utils import AverageMeter, accuracy, plot_classes_preds
 from dataset import DataPrefetchLoader
-torch.set_default_tensor_type('torch.cuda.FloatTensor')
+# torch.set_default_tensor_type('torch.cuda.FloatTensor')
+from settings import get
+
 # import sys
 
 def train(trainloader, model, criterion, optimizer, name, clip, prefetch=True):
@@ -61,8 +63,12 @@ def train_self(trainloader, model, criterion, optimizer, clip):
         # zero the parameter gradients
         optimizer.zero_grad()
 
-        inputs = inputs.cuda().to(dtype=torch.half)
-        target = target.cuda(non_blocking=True)
+        device = get('device')
+        dtype = get('dtype')
+        if device.type != 'cpu':
+            target = target.cuda(non_blocking=True)
+        
+        inputs = inputs.to(dtype=dtype, device=device)
         logits = model(inputs)
 
         loss = criterion(logits, target)
@@ -90,9 +96,11 @@ def train_skeleton(trainloader, model, optimizer, clip):
 
         # zero the parameter gradients
         optimizer.zero_grad()
-        inputs = inputs.cuda().to(dtype=torch.half)
-        target = target.cuda(non_blocking=True)
-        # input.to(dtype=torch.half)
+        device = get('device')
+        if device.type != 'cpu':
+            target = target.cuda(non_blocking=True)
+        
+        inputs = inputs.to(dtype=torch.half, device=device)
         logits, loss = model(inputs, target)
 
         loss.sum().backward()
@@ -155,10 +163,14 @@ def infer_self(valid_queue, model, criterion):
 
     with torch.no_grad():    
         for step, (inputs, target) in enumerate(valid_queue):
-            inputs = inputs.cuda().to(dtype=torch.half)
-            target = target.cuda(non_blocking=True)
-            # # if name == 'skeleton':
-            # inputs.to(dtype=torch.half)
+            
+            dtype = get('dtype')
+            device = get('device')
+            if device.type != 'cpu':
+                target = target.cuda(non_blocking=True)
+            
+            inputs = inputs.to(dtype=dtype, device=device)
+
             logits = model(inputs)
             loss = criterion(logits, target)
 
@@ -182,8 +194,11 @@ def infer_skeleton(valid_queue, model):
 
     with torch.no_grad():    
         for step, (inputs, target) in enumerate(valid_queue):
-            inputs = inputs.cuda().to(dtype=torch.half)
-            target = target.cuda(non_blocking=True)
+            device = get('device')
+            if device.type != 'cpu':
+                target = target.cuda(non_blocking=True)
+            
+            inputs = inputs.to(dtype=torch.half, device=device)
 
             logits, loss = model(inputs, target)
 

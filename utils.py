@@ -5,7 +5,7 @@ import torch.nn.functional as F
 import matplotlib.pyplot as plt
 import os
 import datetime
-torch.set_default_tensor_type('torch.cuda.FloatTensor')
+# torch.set_default_tensor_type('torch.cuda.FloatTensor')
 import logging
 logging.basicConfig(level=logging.INFO)
 

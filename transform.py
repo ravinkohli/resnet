@@ -36,7 +36,8 @@ class TensorRandomCrop:
     def __call__(self, tensor):
         C, H, W = tensor.shape
         h = np.random.choice(range(H + 1 - self.height))
-        w = np.random.choice(range(W + 1 - self.width))
+        choices = range(W + 1 - self.width)
+        w = np.random.choice(choices)
         return tensor[:, h:h+self.height, w:w+self.width]
 
 class Transpose:
@@ -74,10 +75,13 @@ class Pad:
 
 class Normalise:
     def __init__(self, mean, std):
-        if config['device'] == 'cpu':
-            self.mean, self.std = [torch.tensor(x, dtype=get('dtype')).cuda() for x in (mean, std)]
-        else:
-            self.mean, self.std = [torch.tensor(x, dtype=get('dtype')).cuda() for x in (mean, std)]
+        # device = get('device')
+        # dtype = get('dtype')
+        # print(dtype)
+        # if device.type == 'cpu':
+        #     self.mean, self.std = [torch.tensor(x, dtype=get('dtype')) for x in (mean, std)]
+        # else:
+            self.mean, self.std = [torch.tensor(x, dtype=get('dtype'), device=get('device')) for x in (mean, std)]
     def __call__(self, x):
         return (x - self.mean)/self.std
 
@@ -86,7 +90,7 @@ class To:
         self.arg = arg
     
     def __call__(self, x):
-        return torch.tensor(x, dtype=self.arg)
+        return torch.tensor(x, device=get('device'), dtype=self.arg)
 
 class Transform():
     def __init__(self, dataset, transforms):
