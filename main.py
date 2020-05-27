@@ -128,7 +128,7 @@ def model_train(model, config, criterion, trainloader, testloader, validloader, 
                 }
     if success:
         return_dict['time_to_94'] = time_to_94
-    return return_dict
+    return return_dict, model
 
 def get_skeleton_model(criterion):
     model = build_network()
@@ -203,8 +203,6 @@ def main(config):
         transform.To(settings['dtype']),
     ]
 
-
-
     train_transforms = [
         transform.TensorRandomCrop(32, 32),
         transform.TensorRandomHorizontalFlip(),
@@ -263,14 +261,19 @@ def main(config):
     # wandb.watch_called = False
     # wandb.watch(model, log="all", log_freq=3)
     # model.apply(weights_init_uniform)
-    ret_dict = model_train(model, config, criterion, trainloader, testloader, testloader, model_name)
+    ret_dict, model = model_train(model, config, criterion, trainloader, testloader, testloader, model_name)
 
     # to_tensor = transforms.ToTensor()
-    # x = to_tensor(trainset.data[0]).unsqueeze(0).cuda().to(dtype=torch.half)
-    # with torch.autograd.profiler.profile(use_cuda=True) as profile:
-    #     model(x)
+    # x = to_tensor(trainset.data[:batch_size]).unsqueeze(0).cuda().to(dtype=torch.half)
+    loader = iter(trainloader)
+    inputs, labels = next(loader)
+
+    with torch.autograd.profiler.profile(use_cuda=True, record_shapes=True) as profile:
+        model(inputs)
+        with torch.autograd.profiler.emit_nvtx() as emit_profile:
+            model(x)
     
-    # logging.info(profile.key_averages().table())
+    logging.info(emit_profile.key_averages().table())
     file_name = "experiments.txt"
     write_to_file(ret_dict, file_name)
     write_to_file(config, file_name)
@@ -299,27 +302,29 @@ if __name__ == '__main__':
     config['half'] = True
     config['conv_bn'] = conv_pool_bn_act #conv_bn_act_pool #conv_bn_pool_act #conv_pool_bn_act
     config['criterion'] =  nn.CrossEntropyLoss(reduction='sum')  #NMTCritierion(label_smoothing=0.2)#nn.CrossEntropyLoss(reduction='sum') #LabelSmoothLoss(smoothing=0.2)
-    seeds = [1] #, 2, 42, 3]
+    seeds = [1]#, 2, 42, 3]
     
+
+    test_accuracies = list()
+    train_accuracies = list()
+    training_time_per_step = list()
     for seed in seeds:
-        test_accuracies = list()
-        train_accuracies = list()
-        training_time_per_step = list()
+        
         config['seed'] = seed
         return_dict = main(config)
         test_accuracies.append(return_dict['test_acc'])
         train_accuracies.append(return_dict['train_acc'])
         training_time_per_step.append(return_dict['training_time_per_step'])
 
-    print('TEST ACCURACY')
-    print('Mean of 4 runs', mean(test_accuracies))
-    print('Std of 4 runs', stdev(test_accuracies))
-    print('TRAIN ACCURACY')
-    print('Mean of 4 runs', mean(train_accuracies))
-    print('Std of 4 runs', stdev(train_accuracies))
-    print('training_time_per_step')
-    print('Mean of 4 runs', mean(training_time_per_step))
-    print('Std of 4 runs', stdev(training_time_per_step))
+    # print('TEST ACCURACY')
+    # print('Mean of 4 runs', mean(test_accuracies))
+    # print('Std of 4 runs', stdev(test_accuracies))
+    # print('TRAIN ACCURACY')
+    # print('Mean of 4 runs', mean(train_accuracies))
+    # print('Std of 4 runs', stdev(train_accuracies))
+    # print('training_time_per_step')
+    # print('Mean of 4 runs', mean(training_time_per_step))
+    # print('Std of 4 runs', stdev(training_time_per_step))
 
 
     # swa = [True, False]
