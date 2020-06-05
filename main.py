@@ -191,6 +191,7 @@ def main(config):
     CIFAR_MEAN = [0.49139968, 0.48215827, 0.44653124]
     CIFAR_STD = [0.24703233, 0.24348505, 0.26158768]
     torch.manual_seed(config['seed'])  
+    
     preprocess_train_transforms = [
         transform.Pad(4),
         transform.Transpose(source='NHWC', target='NCHW'),
@@ -273,7 +274,7 @@ def main(config):
         with torch.autograd.profiler.emit_nvtx() as emit_profile:
             model(x)
     
-    logging.info(emit_profile.key_averages().table())
+    logging.info(profile.key_averages().table())
     file_name = "experiments.txt"
     write_to_file(ret_dict, file_name)
     write_to_file(config, file_name)

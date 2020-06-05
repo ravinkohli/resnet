@@ -12,12 +12,11 @@ from settings import get
 # import sys
 
 def train(trainloader, model, criterion, optimizer, name, clip, prefetch=True):
-    if prefetch:
-        trainloader = DataPrefetchLoader(trainloader)
-        top1_avg, objs_avg, a = train_prefetch(trainloader, model, criterion, optimizer, clip)
-    elif name == 'skeleton':
+    if name == 'skeleton':
         top1_avg, objs_avg, a = train_skeleton(trainloader, model, optimizer, clip)
     elif 'self' in name:
+        if prefetch:
+            trainloader = DataPrefetchLoader(trainloader)
         top1_avg, objs_avg, a = train_self(trainloader, model, criterion, optimizer,clip)
         
     return top1_avg, objs_avg, a
@@ -62,13 +61,12 @@ def train_self(trainloader, model, criterion, optimizer, clip):
     for step, (inputs, target) in enumerate(trainloader, 0):
         # zero the parameter gradients
         optimizer.zero_grad()
-
-        device = get('device')
-        dtype = get('dtype')
-        if device.type != 'cpu':
-            target = target.cuda(non_blocking=True)
+        # device = get('device')
+        # dtype = get('dtype')
+        # if device.type != 'cpu':
+        #     target = target.cuda(non_blocking=True)
         
-        inputs = inputs.to(dtype=dtype, device=device)
+        # inputs = inputs.to(dtype=dtype, device=device)
         logits = model(inputs)
 
         loss = criterion(logits, target)
@@ -119,12 +117,12 @@ def train_skeleton(trainloader, model, optimizer, clip):
     return top1.avg, objs.avg, a
 
 def infer(valid_queue, model, criterion, name, prefetch=True):
-    if prefetch:
-        valid_queue = DataPrefetchLoader(valid_queue)
-        top1_avg, objs_avg, a = infer_prefetch(valid_queue, model, criterion)
-    elif name == 'skeleton':
+    
+    if name == 'skeleton':
         top1_avg, objs_avg, a = infer_skeleton(valid_queue, model)
     elif 'self' in name:
+        if prefetch:
+            valid_queue = DataPrefetchLoader(valid_queue)
         top1_avg, objs_avg, a = infer_self(valid_queue, model, criterion)
     
     return top1_avg, objs_avg, a

@@ -19,6 +19,7 @@ class DataLoader():
         if self.shuffle:
             i = torch.randperm(len(data))
             data, targets = data[i], targets[i]
+        # print(((x.clone(), y) for (x, y) in zip(chunks(data, self.splits), chunks(targets, self.splits))))
         return ((x.clone(), y) for (x, y) in zip(chunks(data, self.splits), chunks(targets, self.splits)))
 
     def __len__(self):
@@ -26,7 +27,7 @@ class DataLoader():
 
 
 '''
-Code for prefetching used from 
+Code for prefetching modified from 
 https://gist.githubusercontent.com/xhchrn/45585e33c4f1f18864309221eda2f046/raw/0a1feca64ffef2e9390be1b750583208a01d4172/data_prefetcher.py
 '''
 
@@ -38,20 +39,26 @@ class DataPrefetchLoader():
 
     def preload(self):
         try:
-            self.next_data_1, self.next_data_2 = next(self.loader)
+            self.next_data, self.next_target = next(self.loader)
         except StopIteration:
-            self.next_data_1 = None
-            self.next_data_2 = None
+            self.next_data = None
+            self.next_target = None
             return
         with torch.cuda.stream(self.stream):
-            self.next_data_1 = self.next_data_1.cuda(non_blocking=True)
-            self.next_data_2 = self.next_data_2.cuda(non_blocking=True)
-            
-    def next(self):
+            self.next_data = self.next_data.cuda(non_blocking=True)
+            self.next_target = self.next_target.cuda(non_blocking=True)
+                    
+    def __next__(self):
         torch.cuda.current_stream().wait_stream(self.stream)
-        data_1, data_2 = self.next_data_1, self.next_data_2
+        data, targets = self.next_data, self.next_target
+        if data is None:
+            raise StopIteration
         self.preload()
-        return data_1, data_2
+        return data, targets
+    
+    def __iter__(self):
+        return self
     
     def __len__(self): 
         return len(self.dataloader)
+
