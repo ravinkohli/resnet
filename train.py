@@ -95,10 +95,8 @@ def train_skeleton(trainloader, model, optimizer, clip):
         # zero the parameter gradients
         optimizer.zero_grad()
         device = get('device')
-        if device.type != 'cpu':
-            target = target.cuda(non_blocking=True)
-        
-        inputs = inputs.to(dtype=torch.half, device=device)
+
+        inputs = inputs.to(device=device)
         logits, loss = model(inputs, target)
 
         loss.sum().backward()
@@ -162,12 +160,11 @@ def infer_self(valid_queue, model, criterion):
     with torch.no_grad():    
         for step, (inputs, target) in enumerate(valid_queue):
             
-            dtype = get('dtype')
             device = get('device')
             if device.type != 'cpu':
                 target = target.cuda(non_blocking=True)
             
-            inputs = inputs.to(dtype=dtype, device=device)
+            inputs = inputs.to(device=device)
 
             logits = model(inputs)
             loss = criterion(logits, target)
@@ -196,7 +193,7 @@ def infer_skeleton(valid_queue, model):
             if device.type != 'cpu':
                 target = target.cuda(non_blocking=True)
             
-            inputs = inputs.to(dtype=torch.half, device=device)
+            inputs = inputs.to(device=device)
 
             logits, loss = model(inputs, target)
 

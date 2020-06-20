@@ -1,10 +1,7 @@
 import torch
 import torch.nn as nn
-PAD = 0
 
-'''
-https://github.com/whr94621/NJUNMT-pytorch/blob/master/src/modules/criterions.py
-'''
+
 class LabelSmoothLoss(nn.Module):
     
     def __init__(self, smoothing=0.0):
@@ -107,14 +104,14 @@ class Criterion(nn.Module):
 
         return loss
 
-
 class NMTCriterion(Criterion):
     """ A common used criterion for neural machine translation
     NMTCriterion is used for MLE training given golden target sample. Additional label_smoothing
     is supported.
+    https://github.com/whr94621/NJUNMT-pytorch/blob/master/src/modules/criterions.py
     """
 
-    def __init__(self, padding_idx=PAD, label_smoothing=0.0):
+    def __init__(self, padding_idx=0, label_smoothing=0.0):
 
         super().__init__()
 

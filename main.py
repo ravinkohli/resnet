@@ -34,6 +34,9 @@ import sys
 from functools import partial
 import cpuinfo
 
+CIFAR_MEAN = [0.49139968, 0.48215827, 0.44653124]
+CIFAR_STD = [0.24703233, 0.24348505, 0.26158768]
+
 def model_train(model, config, criterion, trainloader, testloader, validloader, model_name):
     num_epochs = config['budget']
     success = False
@@ -164,7 +167,77 @@ def get_skeleton_model(criterion):
             return logits, loss
     model = ModelLoss(model, criterion)
     return model
+
+def get_vanilla_loaders(dtype, batch_size):
+    train_transforms = transforms.Compose([
+        transforms.ToTensor(),
+        transform.To(dtype),
+        transforms.Normalize(CIFAR_MEAN, CIFAR_STD),
+        transform.TensorRandomCrop(32, 32),
+        transform.TensorRandomHorizontalFlip(),
+        transform.Cutout(8, 8),
+        ])
     
+    test_transforms = transforms.Compose([
+        transforms.ToTensor(),
+        transform.To(dtype),
+        ])
+    
+    trainset = torchvision.datasets.CIFAR10(root='./data', 
+                                            train=True, 
+                                            transform=train_transforms,
+                                            download=True)
+    testset = torchvision.datasets.CIFAR10(root='./data', 
+                                            train=False, 
+                                            transform=test_transforms,
+                                            download=True)
+
+    trainloader = torch.utils.data.DataLoader(dataset=trainset,
+                                            batch_size=batch_size,
+                                            shuffle=True) 
+    testloader = torch.utils.data.DataLoader(testset, 
+                                            batch_size=batch_size,
+                                            shuffle=False)
+    return trainloader, testloader
+
+def get_preprocessed_loaders(dtype, batch_size):
+    preprocess_train_transforms = [
+        transform.Pad(4),
+        transform.Transpose(source='NHWC', target='NCHW'),
+        transform.Normalise(CIFAR_MEAN, CIFAR_STD),
+        transform.To(dtype),
+    ]
+    preprocess_test_transforms =[
+        transform.Transpose(source='NHWC', target='NCHW'),
+        transform.Normalise(CIFAR_MEAN, CIFAR_STD),  
+        transform.To(dtype),
+    ]
+
+    train_transforms = [
+        transform.TensorRandomCrop(32, 32),
+        transform.TensorRandomHorizontalFlip(),
+        transform.Cutout(8, 8)
+        ]
+
+    logging.info(f'Batch Size: {batch_size}')
+    trainset = torchvision.datasets.CIFAR10(root='./data', train=True,
+                                            download=False)
+    testset = torchvision.datasets.CIFAR10(root='./data', train=False,
+                                        download=False)
+    process_trainset = preprocess(trainset, preprocess_train_transforms)
+    process_testset = preprocess(testset, preprocess_test_transforms)
+    logging.info(f"Training size= {len(trainset)}")
+    trainloader = DataLoader(dataset=process_trainset, 
+                            transforms=train_transforms, 
+                            batch_size=batch_size, 
+                            shuffle=True)       
+
+    testloader = DataLoader(dataset=process_testset, 
+                            batch_size=batch_size,
+                            shuffle=False)
+    
+    return trainloader, testloader
+
 def main(config):
     
     cuda = torch.cuda.is_available()
@@ -188,51 +261,13 @@ def main(config):
 
     config['device'] = device
     settings['device'] = device
-    CIFAR_MEAN = [0.49139968, 0.48215827, 0.44653124]
-    CIFAR_STD = [0.24703233, 0.24348505, 0.26158768]
+    
     torch.manual_seed(config['seed'])  
     
-    preprocess_train_transforms = [
-        transform.Pad(4),
-        transform.Transpose(source='NHWC', target='NCHW'),
-        transform.Normalise(CIFAR_MEAN, CIFAR_STD),
-        transform.To(settings['dtype']),
-    ]
-    preprocess_test_transforms =[
-        transform.Transpose(source='NHWC', target='NCHW'),
-        transform.Normalise(CIFAR_MEAN, CIFAR_STD),  
-        transform.To(settings['dtype']),
-    ]
-
-    train_transforms = [
-        transform.TensorRandomCrop(32, 32),
-        transform.TensorRandomHorizontalFlip(),
-        transform.Cutout(8, 8)
-        ]
-
-
-    batch_size = config['batch_size']
-    logging.info(f'Batch Size: {batch_size}')
-    trainset = torchvision.datasets.CIFAR10(root='./data', train=True,
-                                            download=False)
-    testset = torchvision.datasets.CIFAR10(root='./data', train=False,
-                                        download=False)
-    process_trainset = preprocess(trainset, preprocess_train_transforms)
-    process_testset = preprocess(testset, preprocess_test_transforms)
-    logging.info(f"Training size= {len(trainset)}")
-    trainloader = DataLoader(dataset=process_trainset, 
-                            transforms=train_transforms, 
-                            batch_size=batch_size, 
-                            shuffle=True)       
-
-    testloader = DataLoader(dataset=process_testset, 
-                            batch_size=batch_size,
-                            shuffle=False)
-
-
-    classes = ('plane', 'car', 'bird', 'cat',
-            'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
-
+    if config['preprocess']:
+        trainloader, testloader = get_preprocessed_loaders(settings['dtype'], settings['batch_size'])
+    else:
+        trainloader, testloader = get_vanilla_loaders(settings['dtype'], settings['batch_size'])
     criterion = config['criterion']
     model_name = config['model']
     # steps_per_epoch = int(steps_per_epoch * 1.0)
@@ -247,7 +282,7 @@ def main(config):
         
     elif model_name == 'self-david':
         model = Network(batch_norm=config['batch_norm'], conv_bn=config['conv_bn'], activation=config['activation'])
-        
+    
     else:
         logging.error('incorrect model')
         sys.exit()
@@ -266,15 +301,15 @@ def main(config):
 
     # to_tensor = transforms.ToTensor()
     # x = to_tensor(trainset.data[:batch_size]).unsqueeze(0).cuda().to(dtype=torch.half)
-    loader = iter(trainloader)
-    inputs, labels = next(loader)
+    # loader = iter(trainloader)
+    # inputs, labels = next(loader)
 
-    with torch.autograd.profiler.profile(use_cuda=True, record_shapes=True) as profile:
-        model(inputs)
-        with torch.autograd.profiler.emit_nvtx() as emit_profile:
-            model(x)
+    # with torch.autograd.profiler.profile(use_cuda=True, record_shapes=True) as profile:
+    #     model(inputs)
+    #     with torch.autograd.profiler.emit_nvtx() as emit_profile:
+    #         model(x)
     
-    logging.info(profile.key_averages().table())
+    # logging.info(profile.key_averages().table())
     file_name = "experiments.txt"
     write_to_file(ret_dict, file_name)
     write_to_file(config, file_name)
@@ -303,19 +338,20 @@ if __name__ == '__main__':
     config['half'] = True
     config['conv_bn'] = conv_pool_bn_act #conv_bn_act_pool #conv_bn_pool_act #conv_pool_bn_act
     config['criterion'] =  nn.CrossEntropyLoss(reduction='sum')  #NMTCritierion(label_smoothing=0.2)#nn.CrossEntropyLoss(reduction='sum') #LabelSmoothLoss(smoothing=0.2)
-    seeds = [1]#, 2, 42, 3]
+    config['preprocess'] = True
+    seeds = [1, 2, 42, 3]
     
 
-    test_accuracies = list()
-    train_accuracies = list()
-    training_time_per_step = list()
-    for seed in seeds:
+    # test_accuracies = list()
+    # train_accuracies = list()
+    # training_time_per_step = list()
+    # for seed in seeds:
         
-        config['seed'] = seed
-        return_dict = main(config)
-        test_accuracies.append(return_dict['test_acc'])
-        train_accuracies.append(return_dict['train_acc'])
-        training_time_per_step.append(return_dict['training_time_per_step'])
+    #     config['seed'] = seed
+    #     return_dict = main(config)
+    #     test_accuracies.append(return_dict['test_acc'])
+    #     train_accuracies.append(return_dict['train_acc'])
+    #     training_time_per_step.append(return_dict['training_time_per_step'])
 
     # print('TEST ACCURACY')
     # print('Mean of 4 runs', mean(test_accuracies))
@@ -328,33 +364,34 @@ if __name__ == '__main__':
     # print('Std of 4 runs', stdev(training_time_per_step))
 
 
-    # swa = [True, False]
-    # half = [True, False]
-    # prefetch = [True, False]
-    # batch_norm = [BatchNorm, partial(GhostBatchNorm, num_splits=16)]
-    # conv_bn = [conv_pool_bn_act, conv_bn_act_pool, conv_bn_pool_act]
+    swa = [True, False]
+    half = [True, False]
+    prefetch = [True, False]
+    batch_norm = [nn.BatchNorm2d, BatchNorm, partial(GhostBatchNorm, num_splits=16)]
+    conv_bn = [conv_pool_bn_act, conv_bn_act_pool, conv_bn_pool_act]
+    preprocess_values = [True, False]
+    models = ['self-vanilla', 'self-david']
 
-
-    # for item in swa:
-    #     test_accuracies = list()
-    #     train_accuracies = list()
-    #     training_time_per_step = list()
-    #     config['swa'] = item
+    for item in models:
+        test_accuracies = list()
+        train_accuracies = list()
+        training_time_per_step = list()
+        config['model'] = item
         
-    #     for seed in seeds:
-    #         config['seed'] = seed
-    #         return_dict = main(config)
-    #         test_accuracies.append(return_dict['test_acc'])
-    #         train_accuracies.append(return_dict['train_acc'])
-    #         training_time_per_step.append(return_dict['training_time_per_step'])
+        for seed in seeds:
+            config['seed'] = seed
+            return_dict = main(config)
+            test_accuracies.append(return_dict['test_acc'])
+            train_accuracies.append(return_dict['train_acc'])
+            training_time_per_step.append(return_dict['training_time_per_step'])
 
-    #     print(f'swa, {item}')
-    #     print('TEST ACCURACY')
-    #     print('Mean of 4 runs', mean(test_accuracies))
-    #     print('Std of 4 runs', stdev(test_accuracies))
-    #     print('TRAIN ACCURACY')
-    #     print('Mean of 4 runs', mean(train_accuracies))
-    #     print('Std of 4 runs', stdev(train_accuracies))
-    #     print('training_time_per_step')
-    #     print('Mean of 4 runs', mean(training_time_per_step))
-    #     print('Std of 4 runs', stdev(training_time_per_step))
+        print(f'models, {item}')
+        print('TEST ACCURACY')
+        print('Mean of 4 runs', mean(test_accuracies))
+        print('Std of 4 runs', stdev(test_accuracies))
+        print('TRAIN ACCURACY')
+        print('Mean of 4 runs', mean(train_accuracies))
+        print('Std of 4 runs', stdev(train_accuracies))
+        print('training_time_per_step')
+        print('Mean of 4 runs', mean(training_time_per_step))
+        print('Std of 4 runs', stdev(training_time_per_step))
